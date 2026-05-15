@@ -54,9 +54,31 @@ export const toolDefinitions = [
         }
       },
       {
-        name: "analyze_codebase",
-        description: "Reads source files from the cloned repository for analysis.",
+        name: "list_files",
+        description: "Lists all source files in the repository to understand the project structure.",
         parameters: { type: Type.OBJECT, properties: {} }
+      },
+      {
+        name: "read_file",
+        description: "Reads the content of a specific file with line numbers.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            file_path: { type: Type.STRING }
+          },
+          required: ["file_path"]
+        }
+      },
+      {
+        name: "search_code",
+        description: "Searches for a specific string or pattern across all source files (grep).",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            query: { type: Type.STRING, description: "The string or regex to search for." }
+          },
+          required: ["query"]
+        }
       },
       {
         name: "create_github_issue",
@@ -126,19 +148,32 @@ export const createHandlers = (ctx: ToolContext) => ({
     return { status: "success", repoDir };
   },
 
-  analyze_codebase: async () => {
+  list_files: async () => {
     const ig = ignore();
     const gitignorePath = join(ctx.repoDir, ".gitignore");
     if (existsSync(gitignorePath)) ig.add(readFileSync(gitignorePath, "utf8"));
     const sourceFiles = getFilesRecursively(ctx.repoDir, ctx.repoDir, ig);
-    let codebaseContext = "";
-    for (const file of sourceFiles) {
-      const content = readFileSync(file, "utf8");
-      const lines = content.split("\n");
-      const numberedContent = lines.map((line, idx) => `${idx + 1}: ${line}`).join("\n");
-      codebaseContext += `--- File: ${relative(ctx.repoDir, file)} ---\n${numberedContent}\n\n`;
+    const fileList = sourceFiles.map(f => relative(ctx.repoDir, f)).join("\n");
+    return { status: "success", fileList };
+  },
+
+  read_file: async ({ file_path }: { file_path: string }) => {
+    const fullPath = join(ctx.repoDir, file_path);
+    if (!existsSync(fullPath)) return { status: "error", message: `File ${file_path} not found.` };
+    const content = readFileSync(fullPath, "utf8");
+    const lines = content.split("\n");
+    const numberedContent = lines.map((line, idx) => `${idx + 1}: ${line}`).join("\n");
+    return { status: "success", content: numberedContent };
+  },
+
+  search_code: async ({ query }: { query: string }) => {
+    try {
+      // Use git grep if it's a git repo, otherwise use a simple search (not implemented here for brevity, assuming git)
+      const results = run(`git grep -nI "${query}"`, ctx.repoDir);
+      return { status: "success", results };
+    } catch (e) {
+      return { status: "success", message: "No matches found." };
     }
-    return { status: "success", codebaseContext };
   },
 
   create_github_issue: async ({ owner, repo, title, body }: any) => {
