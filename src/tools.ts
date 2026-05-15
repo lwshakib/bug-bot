@@ -111,8 +111,17 @@ export const toolDefinitions = [
       },
       {
         name: "run_validation",
-        description: "Installs dependencies and runs validation scripts (build, lint, test).",
-        parameters: { type: Type.OBJECT, properties: {} }
+        description: "Executes validation commands to ensure the fix is correct. Discovers scripts from package.json and CI workflows if no commands are provided.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            commands: { 
+              type: Type.ARRAY, 
+              items: { type: Type.STRING }, 
+              description: "Optional: List of specific commands to run (e.g. ['npm run lint']). If empty, the tool will discover and run standard scripts." 
+            }
+          }
+        }
       },
       {
         name: "list_issues",
@@ -278,15 +287,59 @@ export const createHandlers = (ctx: ToolContext) => ({
     return { status: "success" };
   },
 
-  run_validation: async () => {
-    const pkgPath = join(ctx.repoDir, "package.json");
-    if (!existsSync(pkgPath)) return { status: "success", message: "No package.json found." };
-    const hasLock = existsSync(join(ctx.repoDir, "package-lock.json"));
-    run(hasLock ? "npm ci" : "npm install", ctx.repoDir);
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-    const toRun = ["format", "format:check", "type-check", "build", "lint", "test-once", "test"].filter(s => pkg.scripts?.[s]);
-    for (const script of toRun) run(`npm run ${script}`, ctx.repoDir);
-    return { status: "success", scripts_run: toRun };
+  run_validation: async ({ commands }: { commands?: string[] }) => {
+    if (!ctx.repoDir) return { status: "skipped", reason: "No repository cloned" };
+    
+    const results: any[] = [];
+    try {
+      const pkgPath = join(ctx.repoDir, "package.json");
+      const workflowDir = join(ctx.repoDir, ".github/workflows");
+      
+      let toRun = commands || [];
+
+      // If no commands provided, discover them
+      if (toRun.length === 0) {
+        const discovered = new Set<string>();
+        if (existsSync(pkgPath)) {
+          const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+          const scripts = pkg.scripts || {};
+          ["build", "lint", "typecheck", "format:check"].forEach(s => {
+            if (scripts[s]) discovered.add(`npm run ${s}`);
+          });
+        }
+        if (existsSync(workflowDir)) {
+          const workflows = readdirSync(workflowDir).filter(f => f.endsWith(".yml") || f.endsWith(".yaml"));
+          for (const f of workflows) {
+            const content = readFileSync(join(workflowDir, f), "utf8");
+            const matches = content.matchAll(/run:\s*(?:npm|yarn|pnpm)\s+run\s+([\w:-]+)/g);
+            for (const match of matches) {
+              if (match[1]) discovered.add(`npm run ${match[1]}`);
+            }
+          }
+        }
+        toRun = Array.from(discovered);
+      }
+
+      if (toRun.length === 0) return { status: "success", message: "No validation scripts discovered." };
+
+      console.log(`Executing validation: ${toRun.join(", ")}`);
+
+      for (const cmd of toRun) {
+        try {
+          const output = execSync(cmd, { cwd: ctx.repoDir, stdio: "pipe", encoding: "utf8" });
+          results.push({ command: cmd, status: "passed", output });
+        } catch (e: any) {
+          results.push({ command: cmd, status: "failed", error: e.message, stdout: e.stdout, stderr: e.stderr });
+        }
+      }
+
+      return { 
+        status: results.every(r => r.status !== "failed") ? "success" : "failure", 
+        checks: results 
+      };
+    } catch (e: any) {
+      return { status: "error", message: e.message };
+    }
   },
 
   create_pull_request: async ({ owner, repo, branch_name, title, body, issue_number }: any) => {
