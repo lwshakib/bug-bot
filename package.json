@@ -6,9 +6,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start" : "node dist/index.js",
-    "dev" : "tsc-watch --onSuccess \"node dist/index.js\"",
-    "build" : "tsc -p ."
+    "start": "node dist/index.js",
+    "dev": "tsc-watch --onSuccess \"node dist/index.js\"",
+    "build": "tsc -p ."
   },
   "repository": {
     "type": "git",
@@ -25,5 +25,11 @@
     "@types/node": "^22.15.29",
     "tsc-watch": "^7.2.0",
     "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@google/genai": "^2.3.0",
+    "dotenv": "^17.4.2",
+    "ignore": "^7.0.5",
+    "octokit": "^5.0.5"
   }
 }
