@@ -39,6 +39,8 @@ export async function runBugAgent() {
 
   const handlers: Record<string, (args: any) => Promise<any>> = createHandlers(ctx);
   const history: any[] = [];
+  let toolCallCount = 0;
+  const MAX_TOOL_CALLS = 15;
   
   const systemInstruction = `
 ${AGENTIC_REASONING_INSTRUCTION}
@@ -58,6 +60,11 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
   let message: any = `Start the workflow for ${selected}`;
 
   while (true) {
+    if (toolCallCount >= MAX_TOOL_CALLS) {
+      console.log("Max tool calls reached. Stopping agent to prevent loops.");
+      break;
+    }
+
     const response = await genAI.models.generateContent({
       model: "gemini-3.1-flash-lite",
       contents: [...history, { role: "user", parts: [{ text: typeof message === "string" ? message : JSON.stringify(message) }] }],
@@ -77,12 +84,15 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
       const responseParts: any[] = [];
       for (const call of response.functionCalls) {
         if (!call.name) continue;
-        console.log(`Running tool: ${call.name}`);
+        toolCallCount++;
+        console.log(`[${toolCallCount}] Running tool: ${call.name}`);
         const handler = handlers[call.name];
         if (handler) {
           const result = await handler(call.args);
+          console.log(`Tool Result: ${result.status || "success"}`);
           responseParts.push({ functionResponse: { name: call.name, response: result } });
         } else {
+          console.log(`Tool Error: Handler not found for ${call.name}`);
           responseParts.push({ functionResponse: { name: call.name, response: { status: "error", message: "Tool not found" } } });
         }
       }

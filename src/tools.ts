@@ -73,15 +73,17 @@ export const toolDefinitions = [
         }
       },
       {
-        name: "apply_fix",
-        description: "Applies a code fix to a specific file.",
+        name: "replace_lines",
+        description: "Replaces a specific range of lines in a file with new code.",
         parameters: {
           type: Type.OBJECT,
           properties: {
             file_path: { type: Type.STRING },
-            content: { type: Type.STRING }
+            start_line: { type: Type.NUMBER, description: "The starting line number (1-indexed)." },
+            end_line: { type: Type.NUMBER, description: "The ending line number (inclusive, 1-indexed)." },
+            replacementContent: { type: Type.STRING, description: "The new code to insert." }
           },
-          required: ["file_path", "content"]
+          required: ["file_path", "start_line", "end_line", "replacementContent"]
         }
       },
       {
@@ -131,7 +133,10 @@ export const createHandlers = (ctx: ToolContext) => ({
     const sourceFiles = getFilesRecursively(ctx.repoDir, ctx.repoDir, ig);
     let codebaseContext = "";
     for (const file of sourceFiles) {
-      codebaseContext += `--- File: ${relative(ctx.repoDir, file)} ---\n${readFileSync(file, "utf8")}\n\n`;
+      const content = readFileSync(file, "utf8");
+      const lines = content.split("\n");
+      const numberedContent = lines.map((line, idx) => `${idx + 1}: ${line}`).join("\n");
+      codebaseContext += `--- File: ${relative(ctx.repoDir, file)} ---\n${numberedContent}\n\n`;
     }
     return { status: "success", codebaseContext };
   },
@@ -142,10 +147,21 @@ export const createHandlers = (ctx: ToolContext) => ({
     return { status: "success", url: res.data.html_url, number: res.data.number };
   },
 
-  apply_fix: async ({ file_path, content }: { file_path: string; content: string }) => {
+  replace_lines: async ({ file_path, start_line, end_line, replacementContent }: { file_path: string; start_line: number; end_line: number; replacementContent: string }) => {
     const fullPath = join(ctx.repoDir, file_path);
     if (!existsSync(fullPath)) return { status: "error", message: `File ${file_path} not found.` };
-    writeFileSync(fullPath, content);
+    const content = readFileSync(fullPath, "utf8");
+    const lines = content.split("\n");
+    
+    if (start_line < 1 || end_line > lines.length || start_line > end_line) {
+      return { status: "error", message: `Invalid line range: ${start_line}-${end_line}. File has ${lines.length} lines.` };
+    }
+
+    const before = lines.slice(0, start_line - 1);
+    const after = lines.slice(end_line);
+    const newContent = [...before, replacementContent, ...after].join("\n");
+    
+    writeFileSync(fullPath, newContent);
     return { status: "success" };
   },
 
@@ -171,7 +187,10 @@ export const createHandlers = (ctx: ToolContext) => ({
     
     let finalBody = body;
     if (issue_number) {
-      finalBody += `\n\nCloses #${issue_number}`;
+      const closingPhrase = `Closes #${issue_number}`;
+      if (!finalBody.includes(closingPhrase)) {
+        finalBody += `\n\n${closingPhrase}`;
+      }
     }
 
     const res = await ctx.octokit.rest.pulls.create({ owner, repo, title, head: branch_name, base: "main", body: finalBody });
