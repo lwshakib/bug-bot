@@ -57,3 +57,14 @@ export const GLOBAL_SESSION_RETRY_DELAY = 300000; // 5 minutes
  * The amount of time the AI is instructed to wait when it identifies a transient error.
  */
 export const AI_RECOVERY_WAIT_TIME = "5 minutes";
+
+/**
+ * The maximum allowed duration for a single agent session (Issue or PR mode).
+ * If the session exceeds this limit (e.g. 1 hour), it will be terminated and an email notification sent.
+ */
+export const SESSION_TIMEOUT_MS = 3600000; // 1 hour
+
+/**
+ * The default AI model used for report generation, poetic summaries, and creative tasks.
+ */
+export const DEFAULT_MODEL_ID = "gemini-3.1-flash-lite";

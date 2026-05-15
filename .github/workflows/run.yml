@@ -41,9 +41,13 @@ jobs:
           NODE_ENV: production
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            npm run start -- --mode=${{ github.event.inputs.mode }}
+            if [[ "${{ github.event.inputs.mode }}" == "ISSUE" ]]; then
+              npm run issue-agent
+            else
+              npm run pr-agent
+            fi
           elif [[ "${{ github.event.schedule }}" == "0 0 * * *" ]]; then
-            npm run start -- --mode=ISSUE
+            npm run issue-agent
           else
-            npm run start -- --mode=PR
+            npm run pr-agent
           fi

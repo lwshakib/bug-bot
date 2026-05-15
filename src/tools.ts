@@ -11,8 +11,10 @@ export interface ToolContext {
   octokit: Octokit | null;
   workRoot: string;
   repoDir: string;
+  visitedRepos: string[];
   setRepoDir: (dir: string) => void;
   setWorkRoot: (dir: string) => void;
+  addVisitedRepo: (repo: string) => void;
 }
 
 function run(command: string, cwd: string): string {
@@ -110,6 +112,17 @@ export const toolDefinitions = [
         }
       },
       {
+        name: "run_command",
+        description: "Executes an arbitrary shell command in the repository directory. Use this for installing packages, running custom tests, or project-specific CLI tools.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            command: { type: Type.STRING, description: "The shell command to execute." }
+          },
+          required: ["command"]
+        }
+      },
+      {
         name: "run_validation",
         description: "Executes validation commands to ensure the fix is correct. Discovers scripts from package.json and CI workflows if no commands are provided.",
         parameters: {
@@ -146,14 +159,15 @@ export const toolDefinitions = [
             branch_name: { type: Type.STRING },
             title: { type: Type.STRING },
             body: { type: Type.STRING },
-            issue_number: { type: Type.NUMBER, description: "Optional issue number to link and close (e.g. 123)." }
+            issue_number: { type: Type.NUMBER, description: "Optional issue number to link and close (e.g. 123)." },
+            issue_url: { type: Type.STRING, description: "Optional URL of the issue being resolved." }
           },
           required: ["owner", "repo", "branch_name", "title", "body"]
         }
       },
       {
         name: "hop_to_next_repo",
-        description: "Switches the current focus to another repository from the list.",
+        description: "Switches the current focus to another repository from the list that has not yet been processed in this session.",
         parameters: { type: Type.OBJECT, properties: {} }
       },
       {
@@ -205,13 +219,25 @@ export const createHandlers = (ctx: ToolContext) => ({
   },
 
   hop_to_next_repo: async () => {
-    return { status: "success", action: "HOP_REQUESTED" };
+    const reposPath = join(process.cwd(), "repositories.json");
+    if (!existsSync(reposPath)) return { status: "error", message: "repositories.json not found" };
+    
+    const repos = JSON.parse(readFileSync(reposPath, "utf8")) as string[];
+    const available = repos.filter(r => !ctx.visitedRepos.includes(r));
+    
+    if (available.length === 0) {
+      return { status: "success", action: "FINISH", message: "All repositories in the portfolio have been processed." };
+    }
+
+    // Pick a new random repo from available
+    const next = available[Math.floor(Math.random() * available.length)]!;
+    return { status: "success", action: "HOP_REQUESTED", next_repo: next };
   },
 
   list_issues: async ({ owner, repo }: { owner: string; repo: string }) => {
     if (!ctx.octokit) return { status: "skipped", reason: "No GITHUB_TOKEN" };
     const res = await ctx.octokit.rest.issues.listForRepo({ owner, repo, state: "open" });
-    const issues = res.data.map(i => ({ number: i.number, title: i.title, body: i.body }));
+    const issues = res.data.map(i => ({ number: i.number, title: i.title, body: i.body, url: i.html_url }));
     return { status: "success", issues };
   },
 
@@ -285,6 +311,17 @@ export const createHandlers = (ctx: ToolContext) => ({
     
     writeFileSync(fullPath, newContent);
     return { status: "success" };
+  },
+
+  run_command: async ({ command }: { command: string }) => {
+    if (!ctx.repoDir) return { status: "skipped", reason: "No repository cloned" };
+    try {
+      console.log(`Running CLI command: ${command}`);
+      const output = execSync(command, { cwd: ctx.repoDir, stdio: "pipe", encoding: "utf8" });
+      return { status: "success", output };
+    } catch (e: any) {
+      return { status: "failure", error: e.message, stdout: e.stdout, stderr: e.stderr };
+    }
   },
 
   run_validation: async ({ commands }: { commands?: string[] }) => {

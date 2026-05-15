@@ -20,7 +20,9 @@ import {
   RETRY_503_BURST_DELAY,
   RETRY_503_LONG_DELAY,
   TOOL_RETRY_DELAY,
-  AI_RECOVERY_WAIT_TIME
+  AI_RECOVERY_WAIT_TIME,
+  SESSION_TIMEOUT_MS,
+  DEFAULT_MODEL_ID
 } from "./constants.js";
 
 function pickRandom<T>(items: T[]): T {
@@ -30,7 +32,7 @@ function pickRandom<T>(items: T[]): T {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?: string) {
+export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?: string, sessionStartTime: number = Date.now()) {
   const reposPath = join(process.cwd(), "repositories.json");
   const repos = JSON.parse(readFileSync(reposPath, "utf8")) as string[];
   const selected = repoName || pickRandom(repos);
@@ -41,6 +43,10 @@ export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?
   let state = {
     workRoot: "",
     repoDir: "",
+    visitedRepos: [] as string[],
+    issuesCreated: [] as string[],
+    prsCreated: [] as { url: string; issueNumber?: number; issueUrl?: string }[],
+    errorsHandled: [] as string[],
   };
 
   const ctx: ToolContext = {
@@ -48,9 +54,15 @@ export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?
     octokit,
     get workRoot() { return state.workRoot; },
     get repoDir() { return state.repoDir; },
+    get visitedRepos() { return state.visitedRepos; },
     setWorkRoot: (dir) => state.workRoot = dir,
     setRepoDir: (dir) => state.repoDir = dir,
+    addVisitedRepo: (repo) => {
+      if (!state.visitedRepos.includes(repo)) state.visitedRepos.push(repo);
+    }
   };
+
+  ctx.addVisitedRepo(selected);
 
   const handlers: Record<string, (args: any) => Promise<any>> = createHandlers(ctx);
 
@@ -73,6 +85,20 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
     let message: any = `Start the workflow for ${selected}`;
 
     while (toolCallCount < MAX_TOOL_CALLS) {
+      // Check for session timeout
+      const elapsed = Date.now() - sessionStartTime;
+      if (elapsed >= SESSION_TIMEOUT_MS) {
+        console.log(`[TIMEOUT] Session exceeded ${SESSION_TIMEOUT_MS / 3600000} hour(s). Terminating.`);
+        const emailHandler = handlers["send_email"];
+        if (emailHandler) {
+          await emailHandler({
+            subject: "Agent Session Timeout",
+            html: `The agent session has been terminated because it exceeded the allowed duration of <b>${SESSION_TIMEOUT_MS / 3600000} hour(s)</b>.<br><br>Repostiory being processed: <b>${selected}</b>`
+          });
+        }
+        process.exit(0); // Exit gracefully after notification
+      }
+
       let result: any;
       let retryCount429 = 0;
       let retryCount503 = 0;
@@ -81,7 +107,7 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
       while (true) {
         try {
           result = await genAI.models.generateContent({
-            model: "gemini-2.0-flash",
+            model: DEFAULT_MODEL_ID,
             contents: [...history, { role: "user", parts: [{ text: typeof message === "string" ? message : JSON.stringify(message) }] }],
             config: { 
               systemInstruction,
@@ -166,9 +192,45 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
               try {
                 toolResult = await handler(call.args);
                 if (toolResult.status === "error") throw new Error(toolResult.message);
+                
+                // Track successful creations
+                if (call.name === "create_github_issue" && toolResult.url) {
+                  state.issuesCreated.push(toolResult.url);
+                }
+                if (call.name === "create_pull_request" && toolResult.url) {
+                  state.prsCreated.push({ 
+                    url: toolResult.url, 
+                    issueNumber: call.args.issue_number,
+                    issueUrl: call.args.issue_url
+                  });
+                }
+
+                // Handle Hopping
+                if (call.name === "hop_to_next_repo" && toolResult.action === "HOP_REQUESTED") {
+                  console.log(`[HOP] Moving to next repository: ${toolResult.next_repo}`);
+                  
+                  // 1. Cleanup current repo
+                  if (state.workRoot) {
+                    try { rmSync(state.workRoot, { recursive: true, force: true }); } catch (e) {}
+                  }
+                  
+                  // 2. Set new repo state
+                  state.repoDir = "";
+                  state.workRoot = "";
+                  ctx.addVisitedRepo(toolResult.next_repo);
+                  
+                  // 3. Clone the new one immediately so next tools work
+                  const cloneHandler = handlers["clone_repository"];
+                  if (cloneHandler) {
+                    const cloneRes = await cloneHandler({ repo_name: toolResult.next_repo });
+                    toolResult.clone_status = cloneRes.status;
+                  }
+                }
+                
                 break; // Tool success
               } catch (e: any) {
                 toolRetries++;
+                state.errorsHandled.push(`[${call.name}] ${e.message}`);
                 console.error(`Tool error (${call.name}): ${e.message}. Retry ${toolRetries}/${MAX_TOOL_RETRIES}`);
                 await sleep(TOOL_RETRY_DELAY);
                 if (toolRetries === MAX_TOOL_RETRIES) {
@@ -199,6 +261,14 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
     if (toolCallCount >= MAX_TOOL_CALLS) {
       console.log("Safety limit reached. Stopping.");
     }
+
+    return {
+      repo: selected,
+      issuesCreated: state.issuesCreated,
+      prsCreated: state.prsCreated,
+      errors: state.errorsHandled,
+      duration: Date.now() - sessionStartTime
+    };
   } catch (error: any) {
     console.error(`Session failure on ${selected}:`, error);
     const emailHandler = handlers["send_email"];
@@ -208,6 +278,13 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
         html: `The agent session crashed on repository <b>${selected}</b>.<br><br><b>Reason:</b> ${error.message}`
       });
     }
+    return {
+      repo: selected,
+      issuesCreated: [],
+      prsCreated: [],
+      errors: [error.message],
+      duration: Date.now() - sessionStartTime
+    };
   } finally {
     if (state.workRoot) {
       try {
