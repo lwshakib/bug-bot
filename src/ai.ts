@@ -4,7 +4,8 @@ import { genAI, octokit } from "./client.js";
 import { githubToken } from "./env.js";
 import { 
   AGENTIC_REASONING_INSTRUCTION, 
-  BUG_DETECTION_SYSTEM_INSTRUCTION, 
+  ISSUE_AGENT_SYSTEM_INSTRUCTION, 
+  PR_AGENT_SYSTEM_INSTRUCTION,
   FIX_GENERATION_SYSTEM_INSTRUCTION 
 } from "./prompts.js";
 import { toolDefinitions, createHandlers } from "./tools.js";
@@ -15,12 +16,12 @@ function pickRandom<T>(items: T[]): T {
   return items[index]!;
 }
 
-export async function runBugAgent() {
+export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?: string) {
   const reposPath = join(process.cwd(), "repositories.json");
   const repos = JSON.parse(readFileSync(reposPath, "utf8")) as string[];
-  const selected = pickRandom(repos);
+  const selected = repoName || pickRandom(repos);
 
-  console.log(`Agent starting work on: ${selected}`);
+  console.log(`\n--- [${agentType} AGENT] Starting work on: ${selected} ---`);
 
   // Shared state for tools
   let state = {
@@ -40,21 +41,18 @@ export async function runBugAgent() {
   const handlers: Record<string, (args: any) => Promise<any>> = createHandlers(ctx);
   const history: any[] = [];
   let toolCallCount = 0;
-  const MAX_TOOL_CALLS = 15;
+  const MAX_TOOL_CALLS = 200;
+  
+  const persona = agentType === "ISSUE" ? ISSUE_AGENT_SYSTEM_INSTRUCTION : PR_AGENT_SYSTEM_INSTRUCTION;
   
   const systemInstruction = `
 ${AGENTIC_REASONING_INSTRUCTION}
 
 ---
 Specific Goals for this session on ${selected}:
-1. Clone the repo.
-2. Analyze the codebase for bugs and improvements.
-3. Report findings by creating an issue.
-4. Generate and apply fixes.
-5. Validate the fixes.
-6. Submit a Pull Request if validation passes.
+${agentType === "ISSUE" ? "Find and report UNIQUE issues. Use 'list_issues' first." : "Find an open issue and FIX it. Use 'list_issues' to find a target."}
 
-${BUG_DETECTION_SYSTEM_INSTRUCTION}
+${persona}
 ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
 
   let message: any = `Start the workflow for ${selected}`;

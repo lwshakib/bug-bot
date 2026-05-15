@@ -89,7 +89,8 @@ export const toolDefinitions = [
             owner: { type: Type.STRING },
             repo: { type: Type.STRING },
             title: { type: Type.STRING },
-            body: { type: Type.STRING }
+            body: { type: Type.STRING },
+            labels: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Optional labels (e.g. ['bug', 'high-priority'])." }
           },
           required: ["owner", "repo", "title", "body"]
         }
@@ -114,6 +115,18 @@ export const toolDefinitions = [
         parameters: { type: Type.OBJECT, properties: {} }
       },
       {
+        name: "list_issues",
+        description: "Lists all open issues in the repository.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            owner: { type: Type.STRING },
+            repo: { type: Type.STRING }
+          },
+          required: ["owner", "repo"]
+        }
+      },
+      {
         name: "create_pull_request",
         description: "Commits changes and creates a Pull Request.",
         parameters: {
@@ -128,12 +141,77 @@ export const toolDefinitions = [
           },
           required: ["owner", "repo", "branch_name", "title", "body"]
         }
+      },
+      {
+        name: "hop_to_next_repo",
+        description: "Switches the current focus to another repository from the list.",
+        parameters: { type: Type.OBJECT, properties: {} }
+      },
+      {
+        name: "list_pull_requests",
+        description: "Lists all open Pull Requests in the repository.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            owner: { type: Type.STRING },
+            repo: { type: Type.STRING }
+          },
+          required: ["owner", "repo"]
+        }
+      },
+      {
+        name: "send_email",
+        description: "Sends an email notification using Resend.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            subject: { type: Type.STRING },
+            html: { type: Type.STRING }
+          },
+          required: ["subject", "html"]
+        }
       }
     ]
   }
 ];
 
+import { resend, octokit, genAI } from "./client.js";
+import { NOTIFICATION_EMAIL } from "./constants.js";
+
 export const createHandlers = (ctx: ToolContext) => ({
+  send_email: async ({ subject, html }: { subject: string; html: string }) => {
+    if (!resend || !NOTIFICATION_EMAIL) return { status: "skipped", reason: "Resend not configured" };
+    try {
+      const { data, error } = await resend.emails.send({
+        from: "Repo Agent <bot@lwshakib.site>",
+        to: [NOTIFICATION_EMAIL],
+        subject,
+        html,
+      });
+      if (error) return { status: "error", message: error.message };
+      return { status: "success", id: data?.id };
+    } catch (e: any) {
+      return { status: "error", message: e.message };
+    }
+  },
+
+  hop_to_next_repo: async () => {
+    return { status: "success", action: "HOP_REQUESTED" };
+  },
+
+  list_issues: async ({ owner, repo }: { owner: string; repo: string }) => {
+    if (!ctx.octokit) return { status: "skipped", reason: "No GITHUB_TOKEN" };
+    const res = await ctx.octokit.rest.issues.listForRepo({ owner, repo, state: "open" });
+    const issues = res.data.map(i => ({ number: i.number, title: i.title, body: i.body }));
+    return { status: "success", issues };
+  },
+
+  list_pull_requests: async ({ owner, repo }: { owner: string; repo: string }) => {
+    if (!ctx.octokit) return { status: "skipped", reason: "No GITHUB_TOKEN" };
+    const res = await ctx.octokit.rest.pulls.list({ owner, repo, state: "open" });
+    const prs = res.data.map(p => ({ number: p.number, title: p.title, head: p.head.ref }));
+    return { status: "success", prs };
+  },
   clone_repository: async ({ repo_name }: { repo_name: string }) => {
     const workRoot = mkdtempSync(join(tmpdir(), "repo-agent-"));
     const repoDir = join(workRoot, "repo");
@@ -176,9 +254,9 @@ export const createHandlers = (ctx: ToolContext) => ({
     }
   },
 
-  create_github_issue: async ({ owner, repo, title, body }: any) => {
+  create_github_issue: async ({ owner, repo, title, body, labels }: any) => {
     if (!ctx.octokit) return { status: "skipped", reason: "No GITHUB_TOKEN" };
-    const res = await ctx.octokit.rest.issues.create({ owner, repo, title, body });
+    const res = await ctx.octokit.rest.issues.create({ owner, repo, title, body, labels });
     return { status: "success", url: res.data.html_url, number: res.data.number };
   },
 
