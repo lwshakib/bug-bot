@@ -1,11 +1,24 @@
-name: Run index
+name: Autonomous Repo Management
 
 on:
   schedule:
-    - cron: "0 0 * * *" # Daily at 00:00 UTC (Midnight)
+    # 1. Midnight Audit (ISSUE mode)
+    - cron: '0 0 * * *'
+    # 2. 2 AM Fix Cycle (PR mode)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Agent mode'
+        required: true
+        default: 'ISSUE'
+        type: choice
+        options:
+          - ISSUE
+          - PR
 
 jobs:
-  run:
+  agent-run:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -20,12 +33,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build TypeScript
-        run: npm run build
-      - name: Run index.ts
-        run: npm start
+      - name: Run Agent
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NODE_ENV: production
-
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            npm run start -- --mode=${{ github.event.inputs.mode }}
+          elif [[ "${{ github.event.schedule }}" == "0 0 * * *" ]]; then
+            npm run start -- --mode=ISSUE
+          else
+            npm run start -- --mode=PR
+          fi
