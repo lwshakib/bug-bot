@@ -1,15 +1,3 @@
 [
-  "lwshakib/infera-notebook",
-  "lwshakib/repo-agent",
-  "lwshakib/pixel-image-extractor",
-  "lwshakib/cortex",
-  "lwshakib/code-atlas",
-  "lwshakib/xtractify-web-scraping-extension",
-  "lwshakib/flickzo-short-video-generator",
-  "lwshakib/vision-agentic-ai",
-  "lwshakib/book-library-management-api",
-  "lwshakib/bytetools",
-  "lwshakib/task-fusion-ai-powered",
-  "lwshakib/flowlog-website-tracking",
-  "lwshakib/whisper-movie-db"
+  "lwshakib/repo-agent"
 ]

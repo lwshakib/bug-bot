@@ -373,12 +373,20 @@ export const createHandlers = (ctx: ToolContext) => ({
     const content = readFileSync(fullPath, "utf8");
     const lines = content.split("\n");
     
-    if (start_line < 1 || end_line > lines.length || start_line > end_line) {
-      return { status: "error", message: `Invalid line range: ${start_line}-${end_line}. File has ${lines.length} lines.` };
+    // Safety: Auto-correct swapped line numbers
+    let start = start_line;
+    let end = end_line;
+    if (start > end) {
+      console.log(`[SAFETY] Swapping invalid range: ${start}-${end} to ${end}-${start}`);
+      [start, end] = [end, start];
     }
 
-    const before = lines.slice(0, start_line - 1);
-    const after = lines.slice(end_line);
+    if (start < 1 || end > lines.length || start > end) {
+      return { status: "error", message: `Invalid line range: ${start}-${end}. File has ${lines.length} lines.` };
+    }
+
+    const before = lines.slice(0, start - 1);
+    const after = lines.slice(end);
     const newContent = [...before, replacementContent, ...after].join("\n");
     
     writeFileSync(fullPath, newContent);

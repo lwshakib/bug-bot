@@ -33,6 +33,13 @@ function pickRandom<T>(items: T[]): T {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const isInputError = (message: string): boolean => {
+  const lower = message.toLowerCase();
+  return [
+    "invalid", "not found", "swapped", "missing", "range", 
+    "argument", "unexpected", "forbidden", "permission denied"
+  ].some(keyword => lower.includes(keyword));
+};
 
 export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?: string, sessionStartTime: number = Date.now()) {
   const reposPath = join(process.cwd(), "repositories.json");
@@ -162,7 +169,14 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
           
           const call = part.functionCall;
           toolCallCount++;
-          console.log(`[${toolCallCount}] Running tool: ${call.name}`);
+          
+          let callDetails = "";
+          if (call.args.command) callDetails = ` (${call.args.command})`;
+          else if (call.args.file_path) callDetails = ` (${call.args.file_path})`;
+          else if (call.args.repo_name) callDetails = ` (${call.args.repo_name})`;
+          else if (call.args.command_id) callDetails = ` (${call.args.command_id})`;
+
+          console.log(`[${toolCallCount}] Running tool: ${call.name}${callDetails}`);
           
           let toolResult: any;
           let toolRetries = 0;
@@ -176,6 +190,13 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
                 toolResult = await handler(call.args);
                 if (toolResult.status === "error") throw new Error(toolResult.message);
                 
+                // Enhanced results logging
+                if (call.name === "list_files" && toolResult.fileList) {
+                  const files = toolResult.fileList.split("\n");
+                  const snippet = files.slice(0, 5).join(", ");
+                  console.log(`  - Found ${files.length} files. Snippet: [${snippet}${files.length > 5 ? ", ..." : ""}]`);
+                }
+
                 // Track successful creations
                 if (call.name === "create_github_issue" && toolResult.url) {
                   state.issuesCreated.push(toolResult.url);
@@ -212,6 +233,13 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
                 
                 break; // Tool success
               } catch (e: any) {
+                const inputError = isInputError(e.message);
+                if (inputError) {
+                  console.log(`[INPUT ERROR] ${call.name}: ${e.message}. Skipping retries.`);
+                  toolResult = { status: "error", message: `Tool ${call.name} failed with an input error: ${e.message}. Please correct your arguments and try again.` };
+                  break; 
+                }
+
                 toolRetries++;
                 state.errorsHandled.push(`[${call.name}] ${e.message}`);
                 console.error(`Tool error (${call.name}): ${e.message}. Retry ${toolRetries}/${MAX_TOOL_RETRIES}`);
