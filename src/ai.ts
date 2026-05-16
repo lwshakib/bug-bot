@@ -8,11 +8,13 @@ import {
   PR_AGENT_SYSTEM_INSTRUCTION,
   FIX_GENERATION_SYSTEM_INSTRUCTION 
 } from "./prompts.js";
-import { toolDefinitions, createHandlers } from "./tools.js";
+import { toolDefinitions, createHandlers, terminateAllCommands } from "./tools.js";
 import type { ToolContext } from "./tools.js";
 import { 
   MAX_TOOL_CALLS, 
   MAX_TOOL_RETRIES, 
+  MAX_NETWORK_RETRIES,
+  RETRY_NETWORK_DELAY,
   RETRY_429_DELAY_1, 
   RETRY_429_DELAY_2, 
   RETRY_429_DELAY_3,
@@ -47,6 +49,7 @@ export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?
     issuesCreated: [] as string[],
     prsCreated: [] as { url: string; issueNumber?: number; issueUrl?: string }[],
     errorsHandled: [] as string[],
+    networkRetryCount: 0
   };
 
   const ctx: ToolContext = {
@@ -59,7 +62,8 @@ export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?
     setRepoDir: (dir) => state.repoDir = dir,
     addVisitedRepo: (repo) => {
       if (!state.visitedRepos.includes(repo)) state.visitedRepos.push(repo);
-    }
+    },
+    terminateAllCommands
   };
 
   ctx.addVisitedRepo(selected);
@@ -117,47 +121,26 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
           break; // Success
         } catch (error: any) {
           const status = error?.status || 0;
-          
+          const isNetworkError = !status || status === 0 || error.message?.includes("fetch failed") || ["ECONNABORTED", "ECONNRESET", "ETIMEDOUT"].some(code => error.stack?.includes(code) || error.message?.includes(code));
+
           if (status === 429) {
             retryCount429++;
-            if (retryCount429 === 1) {
-              console.log(`[429] Rate limited. Retrying in ${RETRY_429_DELAY_1/1000}s...`);
-              await sleep(RETRY_429_DELAY_1);
-            } else if (retryCount429 === 2) {
-              console.log(`[429] Rate limited. Retrying in ${RETRY_429_DELAY_2/1000}s...`);
-              await sleep(RETRY_429_DELAY_2);
-            } else if (retryCount429 === 3) {
-              console.log(`[429] Rate limited. Retrying in ${RETRY_429_DELAY_3/1000}s...`);
-              await sleep(RETRY_429_DELAY_3);
-            } else {
-              const emailHandler = handlers["send_email"];
-              if (emailHandler) {
-                await emailHandler({
-                  subject: `Rate Limit Exceeded: ${selected}`,
-                  html: `Agent hit persistent 429 error on <b>${selected}</b>. Session paused.`
-                });
-              }
-              throw error;
-            }
+            const delay = retryCount429 === 1 ? RETRY_429_DELAY_1 : retryCount429 === 2 ? RETRY_429_DELAY_2 : RETRY_429_DELAY_3;
+            if (retryCount429 > 3) throw error;
+            console.log(`[429] Rate limited. Retrying in ${delay/1000}s...`);
+            await sleep(delay);
           } else if (status === 503) {
             retryCount503++;
-            if (retryCount503 <= RETRY_503_BURST_COUNT) {
-              console.log(`[503] Service Unavailable. Retry ${retryCount503}/${RETRY_503_BURST_COUNT}...`);
-              await sleep(RETRY_503_BURST_DELAY);
-            } else if (retryCount503 <= (RETRY_503_BURST_COUNT * 2)) {
-              console.log(`[503] Still down. Waiting ${RETRY_503_LONG_DELAY/1000}s...`);
-              await sleep(RETRY_503_LONG_DELAY);
-            } else if (retryCount503 <= (RETRY_503_BURST_COUNT * 3)) {
-              console.log(`[503] Final attempt cycle. Waiting ${RETRY_503_LONG_DELAY/1000}s...`);
-              await sleep(RETRY_503_LONG_DELAY);
+            if (retryCount503 > (RETRY_503_BURST_COUNT * 3)) throw error;
+            const delay = retryCount503 <= RETRY_503_BURST_COUNT ? RETRY_503_BURST_DELAY : RETRY_503_LONG_DELAY;
+            console.log(`[503] Service Unavailable. Retry ${retryCount503}. Waiting ${delay/1000}s...`);
+            await sleep(delay);
+          } else if (isNetworkError) {
+            if (state.networkRetryCount < MAX_NETWORK_RETRIES) {
+              state.networkRetryCount++;
+              console.log(`[NETWORK ERROR] ${error.message}. Retrying in ${RETRY_NETWORK_DELAY/1000}s (${state.networkRetryCount}/${MAX_NETWORK_RETRIES})...`);
+              await sleep(RETRY_NETWORK_DELAY);
             } else {
-              const emailHandler = handlers["send_email"];
-              if (emailHandler) {
-                await emailHandler({
-                  subject: `Service Unavailable: ${selected}`,
-                  html: `Agent hit persistent 503 error on <b>${selected}</b>. Session paused.`
-                });
-              }
               throw error;
             }
           } else {
@@ -286,11 +269,24 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
       duration: Date.now() - sessionStartTime
     };
   } finally {
+    terminateAllCommands();
     if (state.workRoot) {
-      try {
-        rmSync(state.workRoot, { recursive: true, force: true });
-      } catch (e) {
-        console.error("Failed to cleanup workRoot:", e);
+      // Small delay for handles to release on Windows
+      await sleep(500);
+      let cleanupRetries = 0;
+      while (cleanupRetries < 3) {
+        try {
+          rmSync(state.workRoot, { recursive: true, force: true });
+          break;
+        } catch (e) {
+          cleanupRetries++;
+          if (cleanupRetries === 3) {
+            console.error(`[CLEANUP] Final failure to remove ${state.workRoot}:`, e);
+          } else {
+            console.log(`[CLEANUP] Retry ${cleanupRetries}/3 after EBUSY...`);
+            await sleep(2000);
+          }
+        }
       }
     }
   }

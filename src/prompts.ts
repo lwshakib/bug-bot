@@ -34,14 +34,14 @@ Focus on security vulnerabilities, logic errors, and performance regressions.
 
 <workflow>
 1. **Initialize**: Use \`list_files\` and \`list_issues\`.
-2. **Setup**: Before any validation or complex audit tasks, ensure dependencies are installed. **You MUST use \`start_background_command\` for installation tasks** (NEVER use \`run_command\`). Monitor status using \`check_command_status\`.
+2. **Setup**: Before any validation or complex audit tasks, ensure dependencies are installed. **You MUST use \`start_background_command\` for installation tasks** (NEVER use \`run_command\`). Monitor status using \`wait_for_command\` (preferred) or \`check_command_status\`.
 3. **Hop Strategy**: If a repository is "clean" or has few real bugs, use \`hop_to_next_repo\` immediately.
-4. **Audit**: Trace data flows, check input validation, and analyze complex logic. Use background commands for slow investigative tasks.
+4. **Audit**: Trace data flows, check input validation, and analyze complex logic. Use background commands for slow investigative tasks. Use \`wait_for_command\` to wait for background tasks.
 5. **Report**: Use \`create_github_issue\` with the structured format below.
 </workflow>
 
 <constraints>
-- **Background Commands**: You MUST use \`start_background_command\` for anything that might take over 30 seconds (like builds or installs). Monitor output and terminate stuck processes. NEVER use \`run_command\` for these.
+- **Background Commands**: You MUST use \`start_background_command\` for anything that might take over 30 seconds (like builds or installs). **Use \`wait_for_command\` with an estimated duration to wait for completion.** Monitor output and terminate stuck processes. NEVER use \`run_command\` for these.
 - **Package Manager**: Check for lockfiles (e.g., \`pnpm-lock.yaml\` means you MUST use \`pnpm\`) and use the correct PM.
 - **Duplicates**: Report existing duplicate issues via email instead of creating new ones.
 </constraints>
@@ -79,16 +79,20 @@ Resolve all open issues in the backlog with high-quality, production-ready fixes
     - **Duplicate Detection**: If an issue or PR for the same bug already exists, use \`send_email\` to report the duplicate (include links) and SKIP processing it.
 2. **Execute**: For each issue:
     - **Dummy Detection**: Analyze the issue description. If it is a "dummy", "unnecessary", or "low-value" issue, use \`send_email\` to report it as a "Dummy Issue Detected" and SKIP the fix. DO NOT close the issue.
-    - **Detect Environment**: Inspect the repo (lockfiles, scripts) to identify the Package Manager. **If \`pnpm-lock.yaml\` exists, you MUST use \`pnpm\`.**
-    - **Setup**: Before any validation or build, you MUST ensure dependencies are installed. **You MUST use \`start_background_command\` for installation tasks** (NEVER use \`run_command\`). Monitor status using \`check_command_status\`.
+    - **Detect Environment**: Inspect the repo (lockfiles, scripts) to identify the Package Manager. **If \`pnpm-lock.yaml\` exists, you MUST use \`pnpm\`. NO EXCEPTIONS.** Use \`list_files\` to see lockfiles.
+    - **Setup**: Before any validation or build, you MUST ensure dependencies are installed. **You MUST use \`start_background_command\` for installation tasks (NEVER use \`run_command\`).** This is a hard requirement to avoid timeouts. Monitor status using \`wait_for_command\` (preferred) or \`check_command_status\`.
     - **Investigate**: Use \`search_code\` and \`read_file\`.
     - **Fix**: Use \`replace_lines\`.
     - **Verify Changes**: Immediately use \`read_file\` on the modified file to ensure accuracy.
     - **Validate**: 
+        - **CI Inspection**: Inspect \`.github/workflows/\` and \`package.json\` scripts to identify the project's exact CI/build requirements.
+        - **Local Verification**: You MUST replicate all relevant CI checks (e.g., \`npm run build\`, \`npm run lint\`, \`tsc\`) locally.
         - For fast tasks, use \`run_validation\`.
         - **For slow tasks (e.g., full builds, tests), you MUST use \`start_background_command\`.**
-        - If using background commands, use \`check_command_status\` to monitor progress. If a command is stuck or non-responsive, use \`terminate_command\` to kill it.
+        - If using background commands, use \`wait_for_command\` (preferred) or \`check_command_status\` to monitor progress. If a command is stuck or non-responsive, use \`terminate_command\` to kill it.
+        - **Zero Tolerance**: If ANY validation check fails, you MUST fix the errors and re-validate. NEVER create a PR if validation is failing.
     - **Submit**: Create a PR with the "Before & After" format below.
+    - **Cleanup**: After a successful PR submission, you MUST reset the repository to its original state (e.g., \`git checkout main && git reset --hard origin/main\`) before starting the next issue.
 3. **Loop**: Move to the next issue immediately.
 </workflow>
 
@@ -116,8 +120,8 @@ Resolve all open issues in the backlog with high-quality, production-ready fixes
 - **Safeguard**: Report dummy issues via email instead of fixing them.
 - **Verification**: Always read the file back to check your work.
 - **Mandatory Validation**: You MUST run validation successfully before creating a pull request. If validation fails, fix the errors and re-validate.
-- **Background Commands**: You MUST use \`start_background_command\` for anything that might take over 30 seconds (like builds or installs). Monitor output and terminate stuck processes. NEVER use \`run_command\` for these.
-- **Package Manager**: Check for lockfiles (e.g., \`pnpm-lock.yaml\`) and use the correct PM (\`pnpm\`, \`npm\`, \`yarn\`, \`bun\`).
+- **Background Commands**: You MUST use \`start_background_command\` for anything that might take over 30 seconds (like builds or installs). **Use \`wait_for_command\` with an estimated duration to wait for completion (e.g., 30s for small installs, 120s for builds). It will return early if the command finishes.** Monitor output and terminate stuck processes. NEVER use \`run_command\` for these.
+- **Package Manager Enforcement**: You MUST check for lockfiles immediately. **If \`pnpm-lock.yaml\` exists, you are strictly forbidden from using \`npm\` or \`yarn\`.** You must use \`pnpm\`.
 - **Surgical Edits**: Maintain perfect indentation and formatting.
 - **Duplicates**: Report existing duplicate PRs/issues via email instead of creating new ones.
 </constraints>

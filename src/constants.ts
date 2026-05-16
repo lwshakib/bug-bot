@@ -65,6 +65,13 @@ export const AI_RECOVERY_WAIT_TIME = "5 minutes";
 export const SESSION_TIMEOUT_MS = 3600000; // 1 hour
 
 /**
+ * RETRY LOGIC: NETWORK ERRORS
+ * Transient connection issues (fetch failed, ECONNABORTED, etc.)
+ */
+export const MAX_NETWORK_RETRIES = 5;
+export const RETRY_NETWORK_DELAY = 10000; // 10 seconds
+
+/**
  * The default AI model used for report generation, poetic summaries, and creative tasks.
  */
 export const DEFAULT_MODEL_ID = "gemini-3.1-flash-lite";

@@ -25,6 +25,7 @@ export interface ToolContext {
   setRepoDir: (dir: string) => void;
   setWorkRoot: (dir: string) => void;
   addVisitedRepo: (repo: string) => void;
+  terminateAllCommands: () => void;
 }
 
 function run(command: string, cwd: string): string {
@@ -44,7 +45,7 @@ function getFilesRecursively(dir: string, baseDir: string, ig: any): string[] {
     if (entry === "node_modules" || entry === ".git" || ig.ignores(relPath)) continue;
     if (statSync(fullPath).isDirectory()) {
       files.push(...getFilesRecursively(fullPath, baseDir, ig));
-    } else if (/\.(ts|js|tsx|jsx|py|go|java|c|cpp|h|cs|php|rb|rs)$/.test(entry)) {
+    } else if (/\.(ts|js|tsx|jsx|py|go|java|c|cpp|h|cs|php|rb|rs|json|yaml|yml|toml|lock)$/i.test(entry) || /^(Makefile|Dockerfile)$/i.test(entry)) {
       files.push(fullPath);
     }
   }
@@ -237,6 +238,18 @@ export const toolDefinitions = [
           },
           required: ["command_id"]
         }
+      },
+      {
+        name: "wait_for_command",
+        description: "Waits for a background command to complete or for a timeout to occur. Returns early if the command finishes before the timeout. Use this to avoid spamming check_command_status.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            command_id: { type: Type.STRING, description: "The ID returned by start_background_command." },
+            timeout_seconds: { type: Type.NUMBER, description: "The maximum time to wait in seconds. For example, 30 for small tasks, 120 for builds." }
+          },
+          required: ["command_id", "timeout_seconds"]
+        }
       }
     ]
   }
@@ -244,6 +257,21 @@ export const toolDefinitions = [
 
 import { resend, octokit, genAI } from "./client.js";
 import { NOTIFICATION_EMAIL } from "./constants.js";
+
+export const terminateAllCommands = () => {
+  console.log(`[CLEANUP] Terminating ${activeCommands.size} active background commands...`);
+  for (const [id, session] of activeCommands.entries()) {
+    if (session.exitCode === null) {
+      try {
+        session.process.kill();
+        console.log(`  - Killed command: ${id}`);
+      } catch (e) {
+        console.error(`  - Failed to kill command ${id}:`, e);
+      }
+    }
+  }
+  activeCommands.clear();
+};
 
 export const createHandlers = (ctx: ToolContext) => ({
   send_email: async ({ subject, html }: { subject: string; html: string }) => {
@@ -415,6 +443,27 @@ export const createHandlers = (ctx: ToolContext) => ({
       return { status: "skipped", message: "Command already finished." };
     }
   },
+  wait_for_command: async ({ command_id, timeout_seconds }: { command_id: string; timeout_seconds: number }) => {
+    const session = activeCommands.get(command_id);
+    if (!session) return { status: "error", message: `Command ID ${command_id} not found.` };
+    
+    const startTime = Date.now();
+    const timeoutMs = timeout_seconds * 1000;
+    
+    // Poll every 2 seconds until the command finishes or the timeout is reached
+    while (session.exitCode === null && (Date.now() - startTime) < timeoutMs) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    
+    return {
+      status: "success",
+      isRunning: session.exitCode === null,
+      exitCode: session.exitCode,
+      stdout: session.stdout,
+      stderr: session.stderr,
+      durationSeconds: Math.floor((Date.now() - session.startTime) / 1000)
+    };
+  },
 
   run_validation: async ({ commands }: { commands: string[] }) => {
     if (!ctx.repoDir) return { status: "skipped", reason: "No repository cloned" };
@@ -438,8 +487,10 @@ export const createHandlers = (ctx: ToolContext) => ({
         }
       }
 
+      const allPassed = results.every(r => r.status !== "failed");
       return { 
-        status: results.every(r => r.status !== "failed") ? "success" : "failure", 
+        status: allPassed ? "success" : "failure", 
+        message: allPassed ? "All validation checks passed." : "CRITICAL: ONE OR MORE VALIDATION CHECKS FAILED. YOU MUST FIX THESE ERRORS BEFORE CREATING A PULL REQUEST.",
         checks: results 
       };
     } catch (e: any) {
@@ -454,7 +505,11 @@ export const createHandlers = (ctx: ToolContext) => ({
     run(`git config user.email "leadwithshakib@gmail.com"`, ctx.repoDir);
     run(`git config user.name "Shakib Khan"`, ctx.repoDir);
     run(`git add .`, ctx.repoDir);
-    run(`git commit -m "${title}"`, ctx.repoDir);
+    try {
+      run(`git commit -m "${title}"`, ctx.repoDir);
+    } catch (e) {
+      console.log("Nothing to commit, continuing...");
+    }
     // Use --force to ensure the push succeeds even if the remote branch exists (useful for retries)
     run(`git push origin ${branch_name} --force`, ctx.repoDir);
     
@@ -466,7 +521,38 @@ export const createHandlers = (ctx: ToolContext) => ({
       }
     }
 
-    const res = await ctx.octokit.rest.pulls.create({ owner, repo, title, head: branch_name, base: "main", body: finalBody });
-    return { status: "success", url: res.data.html_url };
+    let baseBranch = "main";
+    try {
+      // Check if master exists and main does not
+      execSync(`git show-ref --verify --quiet refs/remotes/origin/master`, { cwd: ctx.repoDir });
+      try {
+        execSync(`git show-ref --verify --quiet refs/remotes/origin/main`, { cwd: ctx.repoDir });
+      } catch {
+        baseBranch = "master";
+      }
+    } catch {}
+
+    try {
+      const res = await ctx.octokit.rest.pulls.create({ owner, repo, title, head: branch_name, base: baseBranch, body: finalBody });
+      
+      // Cleanup: Attempt to return to the base branch after successful PR to avoid leaking changes into next task
+      try {
+        run(`git checkout ${baseBranch}`, ctx.repoDir);
+        run(`git reset --hard origin/${baseBranch}`, ctx.repoDir);
+      } catch (e) {
+        console.log("Cleanup failed, but PR was created.");
+      }
+
+      return { status: "success", url: res.data.html_url };
+    } catch (e: any) {
+      if (e.message.includes("A pull request already exists")) {
+        const pulls = await ctx.octokit.rest.pulls.list({ owner, repo, head: `${owner}:${branch_name}`, state: "open" });
+        if (pulls.data.length > 0) {
+          const pr = pulls.data[0]!;
+          return { status: "success", url: pr.html_url, message: "Pull request already exists." };
+        }
+      }
+      throw e;
+    }
   }
 });
