@@ -132,9 +132,19 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
 
           if (status === 429) {
             retryCount429++;
+            if (retryCount429 > 3) {
+              console.error("[FATAL] Rate limit exhausted after 3 retries. Terminating session.");
+              const emailHandler = handlers["send_email"];
+              if (emailHandler) {
+                await emailHandler({
+                  subject: "Agent Terminated: Rate Limit Exhausted",
+                  html: `The agent has been terminated because the Gemini API rate limit was consistently exceeded for <b>${selected}</b>.<br><br>Final Wait duration before exit: 5 minutes.`
+                });
+              }
+              process.exit(1); 
+            }
             const delay = retryCount429 === 1 ? RETRY_429_DELAY_1 : retryCount429 === 2 ? RETRY_429_DELAY_2 : RETRY_429_DELAY_3;
-            if (retryCount429 > 3) throw error;
-            console.log(`[429] Rate limited. Retrying in ${delay/1000}s...`);
+            console.log(`[429] Rate limited. Retry ${retryCount429}/3. Waiting ${delay/1000}s...`);
             await sleep(delay);
           } else if (status === 503) {
             retryCount503++;

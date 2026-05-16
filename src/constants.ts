@@ -27,8 +27,8 @@ export const MAX_PRS_PER_SESSION = 30;
  * Progressive delays to allow API rate limits to reset.
  */
 export const RETRY_429_DELAY_1 = 60000;  // 1 minute
-export const RETRY_429_DELAY_2 = 240000; // 4 minutes
-export const RETRY_429_DELAY_3 = 300000; // 5 minutes
+export const RETRY_429_DELAY_2 = 120000; // 2 minutes
+export const RETRY_429_DELAY_3 = 120000; // 2 minutes
 
 /**
  * RETRY LOGIC: 503 (SERVICE UNAVAILABLE)
