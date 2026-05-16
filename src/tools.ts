@@ -1,10 +1,20 @@
-import { execSync } from "node:child_process";
+import { execSync, spawn, ChildProcess } from "node:child_process";
 import { mkdtempSync, readFileSync, existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { Type } from "@google/genai";
 import { Octokit } from "octokit";
 import ignore from "ignore";
+
+interface CommandSession {
+  process: ChildProcess;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  startTime: number;
+}
+
+const activeCommands = new Map<string, CommandSession>();
 
 export interface ToolContext {
   githubToken?: string | undefined;
@@ -124,16 +134,17 @@ export const toolDefinitions = [
       },
       {
         name: "run_validation",
-        description: "Executes validation commands to ensure the fix is correct. Discovers scripts from package.json and CI workflows if no commands are provided.",
+        description: "Executes validation commands to ensure the fix is correct. You MUST inspect the repository (package manager, Makefile, CI scripts) to determine the exact commands to run (e.g., 'pnpm run build', 'pytest', etc.).",
         parameters: {
           type: Type.OBJECT,
           properties: {
             commands: { 
               type: Type.ARRAY, 
               items: { type: Type.STRING }, 
-              description: "Optional: List of specific commands to run (e.g. ['npm run lint']). If empty, the tool will discover and run standard scripts." 
+              description: "List of specific validation commands to run." 
             }
-          }
+          },
+          required: ["commands"]
         }
       },
       {
@@ -193,6 +204,39 @@ export const toolDefinitions = [
           },
           required: ["subject", "html"]
         }
+      },
+      {
+        name: "start_background_command",
+        description: "Starts a long-running shell command in the background (e.g. 'npm install', 'npm run build'). Returns a command_id that you must use to check status.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            command: { type: Type.STRING, description: "The shell command to execute." }
+          },
+          required: ["command"]
+        }
+      },
+      {
+        name: "check_command_status",
+        description: "Checks the output and status of a background command using its command_id. Returns stdout, stderr, and whether it is still running.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            command_id: { type: Type.STRING, description: "The ID returned by start_background_command." }
+          },
+          required: ["command_id"]
+        }
+      },
+      {
+        name: "terminate_command",
+        description: "Kills a background command if it is stuck or no longer needed.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            command_id: { type: Type.STRING, description: "The ID returned by start_background_command." }
+          },
+          required: ["command_id"]
+        }
       }
     ]
   }
@@ -206,7 +250,7 @@ export const createHandlers = (ctx: ToolContext) => ({
     if (!resend || !NOTIFICATION_EMAIL) return { status: "skipped", reason: "Resend not configured" };
     try {
       const { data, error } = await resend.emails.send({
-        from: "Repo Agent <bot@lwshakib.site>",
+        from: "Repository Maintainer Bot <bot@lwshakib.site>",
         to: [NOTIFICATION_EMAIL],
         subject,
         html,
@@ -317,56 +361,80 @@ export const createHandlers = (ctx: ToolContext) => ({
     if (!ctx.repoDir) return { status: "skipped", reason: "No repository cloned" };
     try {
       console.log(`Running CLI command: ${command}`);
-      const output = execSync(command, { cwd: ctx.repoDir, stdio: "pipe", encoding: "utf8" });
+      const output = execSync(command, { cwd: ctx.repoDir, stdio: "pipe", encoding: "utf8", timeout: 300000 });
       return { status: "success", output };
     } catch (e: any) {
+      if (e.code === 'ETIMEDOUT') return { status: "failure", error: "Command timed out after 5 minutes. For long-running tasks, use start_background_command." };
       return { status: "failure", error: e.message, stdout: e.stdout, stderr: e.stderr };
     }
   },
 
-  run_validation: async ({ commands }: { commands?: string[] }) => {
+  start_background_command: async ({ command }: { command: string }) => {
     if (!ctx.repoDir) return { status: "skipped", reason: "No repository cloned" };
+    const commandId = Math.random().toString(36).substring(7);
+    const child = spawn(command, { shell: true, cwd: ctx.repoDir });
+    
+    const session: CommandSession = {
+      process: child,
+      stdout: "",
+      stderr: "",
+      exitCode: null,
+      startTime: Date.now()
+    };
+    
+    child.stdout?.on("data", (data) => session.stdout += data.toString());
+    child.stderr?.on("data", (data) => session.stderr += data.toString());
+    child.on("close", (code) => session.exitCode = code);
+    
+    activeCommands.set(commandId, session);
+    return { status: "success", command_id: commandId, message: "Command started in background. Use check_command_status to monitor." };
+  },
+
+  check_command_status: async ({ command_id }: { command_id: string }) => {
+    const session = activeCommands.get(command_id);
+    if (!session) return { status: "error", message: `Command ID ${command_id} not found.` };
+    
+    return {
+      status: "success",
+      isRunning: session.exitCode === null,
+      exitCode: session.exitCode,
+      stdout: session.stdout,
+      stderr: session.stderr,
+      durationSeconds: Math.floor((Date.now() - session.startTime) / 1000)
+    };
+  },
+
+  terminate_command: async ({ command_id }: { command_id: string }) => {
+    const session = activeCommands.get(command_id);
+    if (!session) return { status: "error", message: `Command ID ${command_id} not found.` };
+    
+    if (session.exitCode === null) {
+      session.process.kill();
+      return { status: "success", message: "Command terminated." };
+    } else {
+      return { status: "skipped", message: "Command already finished." };
+    }
+  },
+
+  run_validation: async ({ commands }: { commands: string[] }) => {
+    if (!ctx.repoDir) return { status: "skipped", reason: "No repository cloned" };
+    if (!commands || commands.length === 0) return { status: "error", message: "You must provide specific validation commands." };
     
     const results: any[] = [];
     try {
-      const pkgPath = join(ctx.repoDir, "package.json");
-      const workflowDir = join(ctx.repoDir, ".github/workflows");
-      
-      let toRun = commands || [];
 
-      // If no commands provided, discover them
-      if (toRun.length === 0) {
-        const discovered = new Set<string>();
-        if (existsSync(pkgPath)) {
-          const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-          const scripts = pkg.scripts || {};
-          ["build", "lint", "typecheck", "format:check"].forEach(s => {
-            if (scripts[s]) discovered.add(`npm run ${s}`);
-          });
-        }
-        if (existsSync(workflowDir)) {
-          const workflows = readdirSync(workflowDir).filter(f => f.endsWith(".yml") || f.endsWith(".yaml"));
-          for (const f of workflows) {
-            const content = readFileSync(join(workflowDir, f), "utf8");
-            const matches = content.matchAll(/run:\s*(?:npm|yarn|pnpm)\s+run\s+([\w:-]+)/g);
-            for (const match of matches) {
-              if (match[1]) discovered.add(`npm run ${match[1]}`);
-            }
-          }
-        }
-        toRun = Array.from(discovered);
-      }
+      console.log(`Executing validation: ${commands.join(", ")}`);
 
-      if (toRun.length === 0) return { status: "success", message: "No validation scripts discovered." };
-
-      console.log(`Executing validation: ${toRun.join(", ")}`);
-
-      for (const cmd of toRun) {
+      for (const cmd of commands) {
         try {
-          const output = execSync(cmd, { cwd: ctx.repoDir, stdio: "pipe", encoding: "utf8" });
+          const output = execSync(cmd, { cwd: ctx.repoDir, stdio: "pipe", encoding: "utf8", timeout: 300000 });
           results.push({ command: cmd, status: "passed", output });
         } catch (e: any) {
-          results.push({ command: cmd, status: "failed", error: e.message, stdout: e.stdout, stderr: e.stderr });
+          if (e.code === 'ETIMEDOUT') {
+            results.push({ command: cmd, status: "failed", error: "Command timed out after 5 minutes." });
+          } else {
+            results.push({ command: cmd, status: "failed", error: e.message, stdout: e.stdout, stderr: e.stderr });
+          }
         }
       }
 
@@ -381,12 +449,14 @@ export const createHandlers = (ctx: ToolContext) => ({
 
   create_pull_request: async ({ owner, repo, branch_name, title, body, issue_number }: any) => {
     if (!ctx.octokit) return { status: "skipped", reason: "No GITHUB_TOKEN" };
-    run(`git checkout -b ${branch_name}`, ctx.repoDir);
+    // Use -B to create or reset the branch if it already exists locally
+    run(`git checkout -B ${branch_name}`, ctx.repoDir);
     run(`git config user.email "leadwithshakib@gmail.com"`, ctx.repoDir);
     run(`git config user.name "Shakib Khan"`, ctx.repoDir);
     run(`git add .`, ctx.repoDir);
     run(`git commit -m "${title}"`, ctx.repoDir);
-    run(`git push origin ${branch_name}`, ctx.repoDir);
+    // Use --force to ensure the push succeeds even if the remote branch exists (useful for retries)
+    run(`git push origin ${branch_name} --force`, ctx.repoDir);
     
     let finalBody = body;
     if (issue_number) {

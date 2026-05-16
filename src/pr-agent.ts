@@ -46,12 +46,14 @@ Spirit: Resilience, precision, and continuous improvement.`;
   const { createHandlers } = await import("./tools.js");
   const handlers = createHandlers({} as any);
   
+  const dateStr = new Date().toLocaleString();
+  
   await handlers["send_email"]({
-    subject: `[GRAND REPORT] PR Fix Session Achievement Summary`,
+    subject: `[GRAND REPORT] PR Fix Session Achievement Summary - ${dateStr}`,
     html: `
 <div style="font-family: sans-serif; color: #333; max-width: 800px; margin: 0 auto; line-height: 1.6;">
   <h1 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">PR Fix Session Report</h1>
-  <p>The autonomous agent has completed its scheduled fix cycle.</p>
+  <p>The autonomous agent has completed its scheduled fix cycle on ${dateStr}.</p>
 
   <div style="background: #eef7ff; padding: 20px; border-radius: 8px; margin: 25px 0;">
     <h2 style="margin-top: 0; font-size: 1.2em; color: #2980b9;">Executive Summary</h2>
