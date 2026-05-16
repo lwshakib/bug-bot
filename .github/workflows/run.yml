@@ -20,6 +20,11 @@ on:
 jobs:
   agent-run:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,7 +44,7 @@ jobs:
       - name: Run Agent
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NODE_ENV: production
         run: |
