@@ -97,18 +97,18 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
 
     while (toolCallCount < MAX_TOOL_CALLS) {
       // Check for session timeout
-      const elapsed = Date.now() - sessionStartTime;
-      if (elapsed >= SESSION_TIMEOUT_MS) {
-        console.log(`[TIMEOUT] Session exceeded ${SESSION_TIMEOUT_MS / 3600000} hour(s). Terminating.`);
-        const emailHandler = handlers["send_email"];
-        if (emailHandler) {
-          await emailHandler({
-            subject: "Agent Session Timeout",
-            html: `The agent session has been terminated because it exceeded the allowed duration of <b>${SESSION_TIMEOUT_MS / 3600000} hour(s)</b>.<br><br>Repostiory being processed: <b>${selected}</b>`
-          });
+        const elapsed = Date.now() - sessionStartTime;
+        if (elapsed >= SESSION_TIMEOUT_MS) {
+          console.log(`[TIMEOUT] Session exceeded ${SESSION_TIMEOUT_MS / 3600000} hour(s). Terminating.`);
+          const emailHandler = handlers["send_email"];
+          if (emailHandler) {
+            await emailHandler({
+              subject: "Agent Session Timeout",
+              html: `The agent session has been terminated because it exceeded the allowed duration of <b>${SESSION_TIMEOUT_MS / 3600000} hour(s)</b>.<br><br>Repostiory being processed: <b>${selected}</b>`
+            });
+          }
+          throw new Error("Session timeout reached");
         }
-        process.exit(0); // Exit gracefully after notification
-      }
 
       let result: any;
       let retryCount429 = 0;
