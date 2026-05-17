@@ -524,18 +524,22 @@ export const createHandlers = (ctx: ToolContext) => ({
 
   create_pull_request: async ({ owner, repo, branch_name, title, body, issue_number }: any) => {
     if (!ctx.octokit) return { status: "skipped", reason: "No GITHUB_TOKEN" };
+    
+    // Setup Identity for commits
+    const env = { ...process.env, GIT_AUTHOR_NAME: "Shakib Khan", GIT_AUTHOR_EMAIL: "leadwithshakib@gmail.com", GIT_COMMITTER_NAME: "Shakib Khan", GIT_COMMITTER_EMAIL: "leadwithshakib@gmail.com" };
+
     // Use -B to create or reset the branch if it already exists locally
     run(`git checkout -B ${branch_name}`, ctx.repoDir);
-    run(`git config user.email "leadwithshakib@gmail.com"`, ctx.repoDir);
-    run(`git config user.name "Shakib Khan"`, ctx.repoDir);
     run(`git add .`, ctx.repoDir);
+    
     try {
-      run(`git commit -m "${title}"`, ctx.repoDir);
+      execSync(`git commit -m "${title}"`, { cwd: ctx.repoDir, env });
     } catch (e) {
       console.log("Nothing to commit, continuing...");
     }
-    // Use --force to ensure the push succeeds even if the remote branch exists (useful for retries)
-    run(`git push origin ${branch_name} --force`, ctx.repoDir);
+
+    // Use --force to ensure the push succeeds even if the remote branch exists
+    execSync(`git push origin ${branch_name} --force`, { cwd: ctx.repoDir, env });
     
     let finalBody = body;
     if (issue_number) {
@@ -555,11 +559,11 @@ export const createHandlers = (ctx: ToolContext) => ({
         baseBranch = "master";
       }
     } catch {}
-
+    
     try {
       const res = await ctx.octokit.rest.pulls.create({ owner, repo, title, head: branch_name, base: baseBranch, body: finalBody });
       
-      // Cleanup: Attempt to return to the base branch after successful PR to avoid leaking changes into next task
+      // Cleanup: Return to base branch
       try {
         run(`git checkout ${baseBranch}`, ctx.repoDir);
         run(`git reset --hard origin/${baseBranch}`, ctx.repoDir);
