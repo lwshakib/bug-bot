@@ -363,6 +363,18 @@ export const createHandlers = (ctx: ToolContext) => ({
 
   create_github_issue: async ({ owner, repo, title, body, labels }: any) => {
     if (!ctx.octokit) return { status: "skipped", reason: "No GITHUB_TOKEN" };
+    
+    // Schema validation
+    if (typeof title !== "string" || title.trim().length === 0 || title.length > 256) {
+      return { status: "error", message: "Invalid title: must be a non-empty string under 256 characters." };
+    }
+    if (typeof body !== "string") {
+      return { status: "error", message: "Invalid body: must be a string." };
+    }
+    if (labels !== undefined && (!Array.isArray(labels) || !labels.every(l => typeof l === "string"))) {
+      return { status: "error", message: "Invalid labels: must be an array of strings." };
+    }
+
     const res = await ctx.octokit.rest.issues.create({ owner, repo, title, body, labels });
     return { status: "success", url: res.data.html_url, number: res.data.number };
   },
