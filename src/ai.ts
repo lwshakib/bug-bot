@@ -1,5 +1,6 @@
-import { readFileSync, rmSync } from "node:fs";
+import { readFileSync, rmSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { genAI, octokit } from "./client.js";
 import { githubToken } from "./env.js";
 import { 
@@ -327,5 +328,22 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
         }
       }
     }
+  }
+}
+
+export async function cloneRepositoryInternal(ctx: ToolContext, repo_name: string) {
+  const workRoot = mkdtempSync(join(tmpdir(), "repo-agent-"));
+  const repoDir = join(workRoot, "repo");
+  ctx.setWorkRoot(workRoot);
+  ctx.setRepoDir(repoDir);
+
+  try {
+    let url = repo_name.includes("://") ? repo_name : `https://github.com/${repo_name}.git`;
+    if (ctx.githubToken && url.startsWith("https://github.com/")) {
+      url = url.replace("https://github.com/", `https://x-access-token:${ctx.githubToken}@github.com/`);
+    }
+  } catch (e) {
+    rmSync(workRoot, { recursive: true, force: true });
+    throw e;
   }
 }
