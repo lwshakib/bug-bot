@@ -43,7 +43,11 @@ function getFilesRecursively(dir: string, baseDir: string, ig: any): string[] {
     const fullPath = join(dir, entry);
     const relPath = relative(baseDir, fullPath);
     if (entry === "node_modules" || entry === ".git" || ig.ignores(relPath)) continue;
-    if (statSync(fullPath).isDirectory()) {
+
+    const stats = statSync(fullPath);
+    if (stats.isSymbolicLink()) continue;
+
+    if (stats.isDirectory()) {
       files.push(...getFilesRecursively(fullPath, baseDir, ig));
     } else if (/\.(ts|js|tsx|jsx|py|go|java|c|cpp|h|cs|php|rb|rs|json|yaml|yml|toml|lock)$/i.test(entry) || /^(Makefile|Dockerfile)$/i.test(entry)) {
       files.push(fullPath);
