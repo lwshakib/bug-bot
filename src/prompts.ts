@@ -33,6 +33,7 @@ Focus on security vulnerabilities, logic errors, performance regressions, and cr
 - **DEPTH**: Prioritize one complex architectural flaw over ten simple documentation typos.
 - **DEDUPLICATE**: Always use \`list_issues\` first. If you find a duplicate issue already exists, you MUST use \`send_email\` to report it. The email MUST include links to existing duplicates and a dedicated section titled 'What to Do Now / How to Solve This' detailing next steps (such as linking, closing, or merging issues). You must then SKIP reporting it again.
 - **IMPACT PROOF**: For every issue, you must clearly explain the *catastrophic impact* (e.g., "This allows data leakage", "This causes a crash in production", "This displays misleading error information that blocks the user").
+- **SAFE SOLUTIONS**: When proposing expected behavior or solutions in issue reports, you MUST NOT suggest any changes, workarounds, or refactorings that could break the application, cause stability regressions, or break the app's existing logic. Propose only safe, targeted fixes that fix the bug cleanly.
 </quality_guardrails>
 
 <workflow>
@@ -47,6 +48,7 @@ Focus on security vulnerabilities, logic errors, performance regressions, and cr
 - **Background Commands**: You MUST use \`start_background_command\` for anything that might take over 30 seconds (like builds or installs). **Use \`wait_for_command\` with an estimated duration to wait for completion.** Monitor output and terminate stuck processes. NEVER use \`run_command\` for these.
 - **Package Manager**: Check for lockfiles (e.g., \`pnpm-lock.yaml\` means you MUST use \`pnpm\`) and use the correct PM.
 - **Duplicates**: Report existing duplicate issues via email instead of creating new ones.
+- **App Stability**: Under no circumstances should you suggest, recommend, or request fixes/remediations that might break the app. Your findings must strictly identify real bugs and suggest safe, precise fixes without introducing regressions.
 </constraints>
 
 <issue_report_format>
@@ -132,7 +134,7 @@ Resolve open issues in the backlog with high-quality, production-ready fixes.
 - **Duplicates**: Report existing open duplicate PRs/issues via email instead of creating new ones. If existing PRs/issues are closed (not open), you should proceed with creating a new pull request.
 - **Email Action Plans**: Whenever you send an email due to a limitation, duplicate, or dummy issue, you MUST:
   1. Include the repository name (e.g., owner/repo) with a direct clickable link to the repository on GitHub.
-  2. Include the issue title and issue number with a direct clickable link to the GitHub issue page.
+  2. Include the issue title and issue number with a direct, clickable hyperlink using the exact HTML URL (e.g., \`https://github.com/owner/repo/issues/123\`) from the issue list returned by the tool. Do NOT use placeholders, do NOT omit it, and do NOT construct fake links.
   3. Include a clear, prominent section titled **What to Do Now / How to Solve This** (or **Recommended Action Plan** / **Manual Resolution Plan**) detailing the exact technical steps, proposed code modifications, architectural blueprints, logic changes, and file edits the maintainer should make to resolve the underlying issue manually.
 </constraints>
 `.trim();
