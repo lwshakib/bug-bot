@@ -168,7 +168,7 @@ Return your analysis in the following JSON format:
     for (const report of analysis.dummyReports) {
       await handlers["send_email"]({
         subject: `[DUMMY ISSUE DETECTED] ${report.repo} #${report.issueNumber}`,
-        html: `The PR Agent has identified a low-value or dummy issue and will skip it.<br><br><b>Repo:</b> ${report.repo}<br><b>Issue:</b> <a href="${report.url}">#${report.issueNumber}</a><br><b>Reason:</b> ${report.reason}<br><br><b>What to Do Now / How to Solve This:</b> ${report.whatToDoNow || 'No recommendations provided.'}`
+        html: `The PR Agent has identified a low-value or dummy issue and will skip it.<br><br><b>Repo:</b> <a href="https://github.com/${report.repo}">${report.repo}</a><br><b>Issue:</b> <a href="${report.url}">#${report.issueNumber}</a><br><b>Reason:</b> ${report.reason}<br><br><b>What to Do Now / How to Solve This:</b> ${report.whatToDoNow || 'No recommendations provided.'}`
       });
     }
   }
