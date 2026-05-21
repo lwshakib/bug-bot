@@ -21,7 +21,7 @@ async function sendFinalReport(mode: string, summaries: SessionSummary[]) {
   
   const reportBody = summaries.map(s => `
 <div style="background: #ffffff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px;">
-  <h3 style="margin-top: 0;">Repository: ${s.repo}</h3>
+  <h3 style="margin-top: 0;">Repository: <a href="https://github.com/${s.repo}">${s.repo}</a></h3>
   <p><b>Issues Found:</b> ${s.issuesCreated.length}</p>
   <ul style="list-style: none; padding-left: 10px;">
     ${s.issuesCreated.map(url => `<li>🔗 <a href="${url}">${url}</a></li>`).join("")}

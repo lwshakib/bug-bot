@@ -31,7 +31,7 @@ Focus on security vulnerabilities, logic errors, performance regressions, and cr
 - **QUALITY OVER QUANTITY**: While your target is 20-30 bugs, this is a **target, not a quota**. If a repository only has 5 real, high-impact bugs, report only those 5. DO NOT fill the quota with low-value or stylistic issues.
 - **NO STYLE NITS**: Ignore minor formatting, naming preferences, or linting warnings unless they cause a functional bug.
 - **DEPTH**: Prioritize one complex architectural flaw over ten simple documentation typos.
-- **DEDUPLICATE**: Always use \`list_issues\` first. If you find a duplicate issue already exists, you MUST use \`send_email\` to report it (include links) and SKIP reporting it again.
+- **DEDUPLICATE**: Always use \`list_issues\` first. If you find a duplicate issue already exists, you MUST use \`send_email\` to report it. The email MUST include links to existing duplicates and a dedicated section titled 'What to Do Now / How to Solve This' detailing next steps (such as linking, closing, or merging issues). You must then SKIP reporting it again.
 - **IMPACT PROOF**: For every issue, you must clearly explain the *catastrophic impact* (e.g., "This allows data leakage", "This causes a crash in production", "This displays misleading error information that blocks the user").
 </quality_guardrails>
 
@@ -79,10 +79,10 @@ Resolve open issues in the backlog with high-quality, production-ready fixes.
 
 <workflow>
 1. **Prioritize**: Use \`list_issues\` and \`list_pull_requests\`.
-    - **Duplicate Detection**: If an issue or PR for the same bug already exists, use \`send_email\` to report the duplicate (include links) and SKIP processing it.
+    - **Duplicate Detection**: Check the state of existing pull requests for the same issue or bug. If there is an **open** PR already, you MUST NOT create a new pull request; use \`send_email\` to report the duplicate (include links and dedicated recommendations on next steps in 'What to Do Now / How to Solve This') and SKIP processing it. However, if the existing PR is **closed**, you MUST proceed to fix the issue and create a new pull request for it.
 2. **Execute**: For each issue:
-    - **Dummy Detection**: Analyze the issue description. If it is a "dummy", "unnecessary", or "low-value" issue, use \`send_email\` to report it as a "Dummy Issue Detected" and SKIP the fix. DO NOT close the issue.
-    - **Environment Feasibility**: Before investigating, analyze the repository (lockfiles, scripts) and the issue requirements. If the fix requires a side-effect you cannot perform (e.g., a database migration, a specific cloud service, or a secret you don't have), **DO NOT attempt the fix**. Report the limitation via email and SKIP.
+    - **Dummy Detection**: Analyze the issue description. If it is a "dummy", "unnecessary", or "low-value" issue, use \`send_email\` to report it as a "Dummy Issue Detected". The email MUST include a dedicated, clear section titled 'What to Do Now / How to Solve This' detailing recommendations on why it is low-value and why/how it should be closed/cleaned up. You must then SKIP the fix. DO NOT close the issue.
+    - **Environment Feasibility**: Before investigating, analyze the repository (lockfiles, scripts) and the issue requirements. If the fix requires a side-effect you cannot perform (e.g., a database migration, a specific cloud service, or a secret you don't have), **DO NOT attempt the fix**. Report the limitation via email. The email MUST include a clear description of the limitation and a dedicated, prominent section titled 'What to Do Now / How to Solve This' (or 'Recommended Action Plan' / 'Manual Resolution Plan') providing a detailed, step-by-step technical solution, proposed code/architecture changes, logic structures, and specific file modifications detailing exactly how a human can resolve it manually. Do not just state that refactoring is needed; specify the actual code/architecture changes required. You must then SKIP the fix.
     - **Detect Environment**: Inspect the repo (lockfiles, scripts) to identify the Package Manager. **If \`pnpm-lock.yaml\` exists, you MUST use \`pnpm\`. NO EXCEPTIONS.** Use \`list_files\` to see lockfiles.
     - **Setup**: Before any validation or build, you MUST ensure dependencies are installed. **You MUST use \`start_background_command\` for installation tasks (NEVER use \`run_command\`).** This is a hard requirement to avoid timeouts. Monitor status using \`wait_for_command\` (preferred) or \`check_command_status\`.
     - **Investigate**: Use \`search_code\` and \`read_file\`.
@@ -129,7 +129,8 @@ Resolve open issues in the backlog with high-quality, production-ready fixes.
 - **Background Commands**: You MUST use \`start_background_command\` for anything that might take over 30 seconds (like builds or installs). **Use \`wait_for_command\` with an estimated duration to wait for completion (e.g., 30s for small installs, 120s for builds). It will return early if the command finishes.** Monitor output and terminate stuck processes. NEVER use \`run_command\` for these.
 - **Package Manager Enforcement**: You MUST check for lockfiles immediately. **If \`pnpm-lock.yaml\` exists, you are strictly forbidden from using \`npm\` or \`yarn\`.** You must use \`pnpm\`.
 - **Surgical Edits**: Maintain perfect indentation and formatting.
-- **Duplicates**: Report existing duplicate PRs/issues via email instead of creating new ones.
+- **Duplicates**: Report existing open duplicate PRs/issues via email instead of creating new ones. If existing PRs/issues are closed (not open), you should proceed with creating a new pull request.
+- **Email Action Plans**: Whenever you send an email due to a limitation, duplicate, or dummy issue, you MUST include a clear, prominent section titled **What to Do Now / How to Solve This** (or **Recommended Action Plan** / **Manual Resolution Plan**) detailing the exact technical steps, proposed code modifications, architectural blueprints, logic changes, and file edits the maintainer should make to resolve the underlying issue manually.
 </constraints>
 `.trim();
 

@@ -1,6 +1,6 @@
-# 🤖 Autonomous Repo Management Agent
+# 🤖 Bug-Bot: Autonomous Bug & Vulnerability Remediation Agent
 
-A high-throughput, enterprise-grade autonomous maintenance system designed to audit multiple repositories and resolve backlogs with surgical precision.
+An autonomous bug-hunting and PR-fixing bot designed to find, report, and remediate code vulnerabilities and issues across multiple repositories with surgical precision.
 
 ## 🏗️ Architecture: Dual-Agent Pipeline
 
@@ -44,6 +44,22 @@ At the end of every session, the agent delivers a **Grand Report** email includi
 
 ---
 
+## 🛠️ Specialized Agent Features
+
+### 1. **Active PR Filtering Safeguards**
+*   **Link Detection**: The issue selection system scans active pull requests (matching titles, bodies, and branch names using patterns like `#123`, `issue-123`, etc.) to find linked issues.
+*   **Safety Isolation**:
+    *   **MUST Avoid**: Automatically filters out and blocks work on issues that have open PRs created by the bot itself.
+    *   **Prefer to Avoid**: Excludes issues that have open PRs from other contributors to avoid duplication.
+*   **Log Clarity**: The survey and auditing tools output detailed logs classifying exclusions.
+
+### 2. **Batch File Reading Optimization**
+*   **Throughput**: The `read_file` tool handles reading up to **5 files at once** using the `file_paths` array parameter, minimizing API roundtrips and optimizing context window usage.
+*   **Backward Compatibility**: Supports single-file reads via the legacy `file_path` parameter.
+*   **Error Tolerance**: Validates paths and resolves files independently; a path-traversal or missing file error in a batch will not block the recovery of other valid files.
+
+---
+
 ## 🛠️ Configuration
 
 All behavioral constants are centralized in \`src/constants.ts\`. You can easily tune:
@@ -60,5 +76,4 @@ Ensure your \`.env\` file contains:
 *   \`GITHUB_TOKEN\`: For repository interaction.
 *   \`RESEND_API_KEY\`: For email notifications.
 
----
-*Autonomous Maintenance System | Built for Professional Repository Portfolio Management*
+*Bug-Bot | Autonomous Bug & Vulnerability Remediation System*

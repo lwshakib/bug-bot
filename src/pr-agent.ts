@@ -20,7 +20,7 @@ async function sendFinalReport(mode: string, summaries: SessionSummary[]) {
   
   const reportBody = summaries.map(s => `
 <div style="background: #ffffff; padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px;">
-  <h3 style="margin-top: 0;">Repository: ${s.repo}</h3>
+  <h3 style="margin-top: 0;">Repository: <a href="https://github.com/${s.repo}">${s.repo}</a></h3>
   <p><b>PRs Created:</b> ${s.prsCreated.length}</p>
   <ul style="list-style: none; padding-left: 10px;">
     ${s.prsCreated.map(pr => `<li>🛠️ <a href="${pr.url}">${pr.url}</a> ${pr.issueNumber ? `(Resolves Issue <a href="${pr.issueUrl || '#'}">#${pr.issueNumber}</a>)` : ""}</li>`).join("")}
@@ -112,7 +112,8 @@ async function main() {
   const strategyPrompt = `Analyze the following issue backlogs across multiple repositories. 
 1. Categorize each issue as either "REAL_BUG" (needs a code fix) or "DUMMY" (placeholder, no-op, or unnecessary).
 2. For any "DUMMY" issues, provide a brief reason why.
-3. Generate a prioritized list of repositories to process. Rank them by the total volume of high-impact "REAL_BUG" issues.
+3. For any "DUMMY" issues, also provide a concrete "solve" recommendation under "whatToDoNow" (e.g. why it is low value, if it should be closed, or how it can be addressed/cleaned up).
+4. Generate a prioritized list of repositories to process. Rank them by the total volume of high-impact "REAL_BUG" issues.
 
 Backlogs:
 ${JSON.stringify(portfolioBacklog, null, 2)}
@@ -121,7 +122,7 @@ Return your analysis in the following JSON format:
 {
   "prioritizedPlan": ["owner/repo", "owner/repo"],
   "dummyReports": [
-    { "repo": "owner/repo", "issueNumber": 123, "url": "...", "reason": "..." }
+    { "repo": "owner/repo", "issueNumber": 123, "url": "...", "reason": "...", "whatToDoNow": "..." }
   ]
 }`;
 
@@ -167,7 +168,7 @@ Return your analysis in the following JSON format:
     for (const report of analysis.dummyReports) {
       await handlers["send_email"]({
         subject: `[DUMMY ISSUE DETECTED] ${report.repo} #${report.issueNumber}`,
-        html: `The PR Agent has identified a low-value or dummy issue and will skip it.<br><br><b>Repo:</b> ${report.repo}<br><b>Issue:</b> <a href="${report.url}">#${report.issueNumber}</a><br><b>Reason:</b> ${report.reason}`
+        html: `The PR Agent has identified a low-value or dummy issue and will skip it.<br><br><b>Repo:</b> ${report.repo}<br><b>Issue:</b> <a href="${report.url}">#${report.issueNumber}</a><br><b>Reason:</b> ${report.reason}<br><br><b>What to Do Now / How to Solve This:</b> ${report.whatToDoNow || 'No recommendations provided.'}`
       });
     }
   }

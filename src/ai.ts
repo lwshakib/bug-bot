@@ -105,7 +105,7 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
           if (emailHandler) {
             await emailHandler({
               subject: "Agent Session Timeout",
-              html: `The agent session has been terminated because it exceeded the allowed duration of <b>${SESSION_TIMEOUT_MS / 3600000} hour(s)</b>.<br><br>Repostiory being processed: <b>${selected}</b>`
+              html: `The agent session has been terminated because it exceeded the allowed duration of <b>${SESSION_TIMEOUT_MS / 3600000} hour(s)</b>.<br><br>Repository being processed: <b><a href="https://github.com/${selected}">${selected}</a></b><br><br><b>What to Do Now / How to Solve This:</b> You can increase the <code>SESSION_TIMEOUT_MS</code> value in <code>src/constants.ts</code>, run the agent again, or check the logs to see if a command is stuck.`
             });
           }
           throw new Error("Session timeout reached");
@@ -133,13 +133,13 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
 
           if (status === 429) {
             retryCount429++;
-            if (retryCount429 > 3) {
+             if (retryCount429 > 3) {
               console.error("[FATAL] Rate limit exhausted after 3 retries. Terminating session.");
               const emailHandler = handlers["send_email"];
               if (emailHandler) {
                 await emailHandler({
                   subject: "Agent Terminated: Rate Limit Exhausted",
-                  html: `The agent has been terminated because the Gemini API rate limit was consistently exceeded for <b>${selected}</b>.<br><br>Final Wait duration before exit: 5 minutes.`
+                  html: `The agent has been terminated because the Gemini API rate limit was consistently exceeded for <b><a href="https://github.com/${selected}">${selected}</a></b>.<br><br><b>What to Do Now / How to Solve This:</b> Wait a few minutes for the rate limits to clear, check your current API quota and usage in the Google AI Studio console, or switch to an API key with higher rate limits.`
                 });
               }
               process.exit(1); 
@@ -297,7 +297,7 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
     if (emailHandler) {
       await emailHandler({
         subject: `Agent Session Failure: ${selected}`,
-        html: `The agent session crashed on repository <b>${selected}</b>.<br><br><b>Reason:</b> ${error.message}`
+        html: `The agent session crashed on repository <b><a href="https://github.com/${selected}">${selected}</a></b>.<br><br><b>Reason:</b> ${error.message}<br><br><b>What to Do Now / How to Solve This:</b> Review the logs and failure reason. If the error is code-related, fix the bug. If it is a transient environment error, verify the setup and rerun the agent.`
       });
     }
     return {
