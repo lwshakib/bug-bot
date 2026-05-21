@@ -1,5 +1,5 @@
 {
-  "name": "repo-agent",
+  "name": "bug-bot",
   "version": "1.0.0",
   "type": "module",
   "description": "",
@@ -14,15 +14,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lwshakib/repo-agent.git"
+    "url": "git+https://github.com/lwshakib/bug-bot.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/lwshakib/repo-agent/issues"
+    "url": "https://github.com/lwshakib/bug-bot/issues"
   },
-  "homepage": "https://github.com/lwshakib/repo-agent#readme",
+  "homepage": "https://github.com/lwshakib/bug-bot#readme",
   "devDependencies": {
     "@types/node": "^22.15.29",
     "@types/yargs": "^17.0.35",
