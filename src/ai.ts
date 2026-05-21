@@ -2,7 +2,7 @@ import { readFileSync, rmSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { genAI, octokit } from "./client.js";
-import { githubToken } from "./env.js";
+import { githubToken, isProduction } from "./env.js";
 import { 
   AGENTIC_REASONING_INSTRUCTION, 
   ISSUE_AGENT_SYSTEM_INSTRUCTION, 
@@ -339,7 +339,7 @@ export async function cloneRepositoryInternal(ctx: ToolContext, repo_name: strin
 
   try {
     let url = repo_name.includes("://") ? repo_name : `https://github.com/${repo_name}.git`;
-    if (ctx.githubToken && url.startsWith("https://github.com/")) {
+    if (isProduction && ctx.githubToken && url.startsWith("https://github.com/")) {
       url = url.replace("https://github.com/", `https://x-access-token:${ctx.githubToken}@github.com/`);
     }
   } catch (e) {
