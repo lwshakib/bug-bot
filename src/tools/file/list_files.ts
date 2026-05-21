@@ -1,6 +1,6 @@
 import { Type } from "@google/genai";
 import { defineTool } from "../utils.js";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, lstatSync } from "node:fs";
 import { join, relative } from "node:path";
 import ignore from "ignore";
 
@@ -12,7 +12,7 @@ function getFilesRecursively(dir: string, baseDir: string, ig: any): string[] {
     const relPath = relative(baseDir, fullPath);
     if (entry === "node_modules" || entry === ".git" || ig.ignores(relPath)) continue;
 
-    const stats = statSync(fullPath);
+    const stats = lstatSync(fullPath);
     if (stats.isSymbolicLink()) continue;
 
     if (stats.isDirectory()) {

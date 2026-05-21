@@ -15,7 +15,8 @@ export const searchCodeTool = defineTool({
   },
   execute: async ({ query }: { query: string }, ctx) => {
     try {
-      const results = run(`git grep -nI "${query}"`, ctx.repoDir);
+      const escapedQuery = query.replace(/[\\"]/g, '\\$&');
+      const results = run(`git grep -nI "${escapedQuery}"`, ctx.repoDir);
       return { status: "success", results };
     } catch (e) {
       return { status: "success", message: "No matches found." };

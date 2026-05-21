@@ -31,6 +31,10 @@ export const startBackgroundCommandTool = defineTool({
     child.stdout?.on("data", (data) => session.stdout += data.toString());
     child.stderr?.on("data", (data) => session.stderr += data.toString());
     child.on("close", (code) => session.exitCode = code);
+    child.on("error", (err) => {
+      session.exitCode = 1;
+      session.stderr += `\nFailed to start command: ${err.message}\n`;
+    });
     
     activeCommands.set(commandId, session);
     return { status: "success", command_id: commandId, message: "Command started in background. Use check_command_status to monitor." };

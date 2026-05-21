@@ -23,6 +23,11 @@ export const createPullRequestTool = defineTool({
   execute: async ({ owner, repo, branch_name, title, body, issue_number }: { owner: string; repo: string; branch_name: string; title: string; body: string; issue_number?: number; issue_url?: string }, ctx) => {
     if (!ctx.octokit) return { status: "skipped", reason: "No GITHUB_TOKEN" };
     
+    // Validate branch_name to prevent command injection
+    if (!/^[a-zA-Z0-9_./-]+$/.test(branch_name)) {
+      return { status: "error", message: "Invalid branch name format. Only alphanumeric characters, dashes, underscores, dots, and slashes are allowed." };
+    }
+
     // Setup Identity for commits
     const env = { ...process.env, GIT_AUTHOR_NAME: "Shakib Khan", GIT_AUTHOR_EMAIL: "leadwithshakib@gmail.com", GIT_COMMITTER_NAME: "Shakib Khan", GIT_COMMITTER_EMAIL: "leadwithshakib@gmail.com" };
 
@@ -31,7 +36,8 @@ export const createPullRequestTool = defineTool({
     run(`git add .`, ctx.repoDir);
     
     try {
-      execSync(`git commit -m "${title}"`, { cwd: ctx.repoDir, env });
+      const escapedTitle = title.replace(/[\\"]/g, '\\$&');
+      execSync(`git commit -m "${escapedTitle}"`, { cwd: ctx.repoDir, env });
     } catch (e) {
       console.log("Nothing to commit, continuing...");
     }

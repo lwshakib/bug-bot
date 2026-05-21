@@ -17,7 +17,9 @@ export const listIssuesTool = defineTool({
   execute: async ({ owner, repo }: { owner: string; repo: string }, ctx) => {
     if (!ctx.octokit) return { status: "skipped", reason: "No GITHUB_TOKEN" };
     const res = await ctx.octokit.rest.issues.listForRepo({ owner, repo, state: "open" });
-    const issues = res.data.map(i => ({ number: i.number, title: i.title, body: i.body, url: i.html_url }));
+    const issues = res.data
+      .filter(i => !i.pull_request)
+      .map(i => ({ number: i.number, title: i.title, body: i.body, url: i.html_url }));
     return { status: "success", issues };
   }
 });

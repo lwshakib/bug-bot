@@ -28,8 +28,17 @@ export const terminateAllCommands = () => {
   for (const [id, session] of activeCommands.entries()) {
     if (session.exitCode === null) {
       try {
-        session.process.kill();
-        console.log(`  - Killed command: ${id}`);
+        if (process.platform === "win32" && session.process.pid !== undefined) {
+          try {
+            execSync(`taskkill /pid ${session.process.pid} /T /F`, { stdio: "ignore" });
+            console.log(`  - Killed command tree: ${id} (PID ${session.process.pid})`);
+          } catch (err) {
+            session.process.kill();
+          }
+        } else {
+          session.process.kill();
+          console.log(`  - Killed command: ${id}`);
+        }
       } catch (e) {
         console.error(`  - Failed to kill command ${id}:`, e);
       }

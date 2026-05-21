@@ -1,7 +1,7 @@
 import { Type } from "@google/genai";
 import { defineTool } from "../utils.js";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 export const readFileTool = defineTool({
   declaration: {
@@ -16,7 +16,11 @@ export const readFileTool = defineTool({
     }
   },
   execute: async ({ file_path }: { file_path: string }, ctx) => {
-    const fullPath = join(ctx.repoDir, file_path);
+    const resolvedRepo = resolve(ctx.repoDir);
+    const fullPath = resolve(join(resolvedRepo, file_path));
+    if (!fullPath.startsWith(resolvedRepo)) {
+      return { status: "error", message: "Path traversal detected: Access outside repository root is forbidden." };
+    }
     if (!existsSync(fullPath)) return { status: "error", message: `File ${file_path} not found.` };
     const content = readFileSync(fullPath, "utf8");
     const lines = content.split("\n");

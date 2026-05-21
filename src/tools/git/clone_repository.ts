@@ -18,6 +18,13 @@ export const cloneRepositoryTool = defineTool({
     }
   },
   execute: async ({ repo_name }: { repo_name: string }, ctx) => {
+    // Validate repo_name format to prevent command injection
+    const isValidFormat = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repo_name) ||
+      /^https:\/\/github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(?:\.git)?$/.test(repo_name);
+    if (!isValidFormat) {
+      return { status: "error", message: "Invalid repository format. Must be 'owner/repo' or a valid GitHub HTTPS URL." };
+    }
+
     const workRoot = mkdtempSync(join(tmpdir(), "repo-agent-"));
     const repoDir = join(workRoot, "repo");
     ctx.setWorkRoot(workRoot);
