@@ -58,7 +58,7 @@ export const createHandlers = (ctx: ToolContext) => {
     list_pull_requests: (args: { owner: string; repo: string }) => Promise<any>;
     clone_repository: (args: { repo_name: string }) => Promise<any>;
     list_files: (args: any) => Promise<any>;
-    read_file: (args: { file_path: string }) => Promise<any>;
+    read_file: (args: { file_path?: string; file_paths?: string[] }) => Promise<any>;
     search_code: (args: { query: string }) => Promise<any>;
     create_github_issue: (args: { owner: string; repo: string; title: string; body: string; labels?: string[] }) => Promise<any>;
     replace_lines: (args: { file_path: string; start_line: number; end_line: number; replacementContent: string }) => Promise<any>;

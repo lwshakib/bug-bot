@@ -17,7 +17,13 @@ export const listPullRequestsTool = defineTool({
   execute: async ({ owner, repo }: { owner: string; repo: string }, ctx) => {
     if (!ctx.octokit) return { status: "skipped", reason: "No GITHUB_TOKEN" };
     const res = await ctx.octokit.rest.pulls.list({ owner, repo, state: "open" });
-    const prs = res.data.map(p => ({ number: p.number, title: p.title, head: p.head.ref }));
+    const prs = res.data.map(p => ({
+      number: p.number,
+      title: p.title,
+      head: p.head.ref,
+      user: p.user ? { login: p.user.login } : null,
+      body: p.body
+    }));
     return { status: "success", prs };
   }
 });

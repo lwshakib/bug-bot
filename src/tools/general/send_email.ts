@@ -20,7 +20,7 @@ export const sendEmailTool = defineTool({
     if (!resend || !NOTIFICATION_EMAIL) return { status: "skipped", reason: "Resend not configured" };
     try {
       const { data, error } = await resend.emails.send({
-        from: "Repository Maintainer Bot <bot@lwshakib.site>",
+        from: "BugBot <bugbot@lwshakib.site>",
         to: [NOTIFICATION_EMAIL],
         subject,
         html,
