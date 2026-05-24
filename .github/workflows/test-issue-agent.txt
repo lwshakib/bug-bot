@@ -1,0 +1,37 @@
+name: Test Issue Agent
+
+on:
+  push:
+    branches: [main, master]
+
+jobs:
+  test-issue:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run Issue Agent
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NODE_ENV: ${{ secrets.NODE_ENV }}
+        run: npm run issue-agent
