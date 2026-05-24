@@ -42,6 +42,13 @@ const isInputError = (message: string): boolean => {
   ].some(keyword => lower.includes(keyword));
 };
 
+interface RepoAuditStats {
+  repo: string;
+  issuesCreated: string[];
+  advisoryEmailsSent: number;
+  otherEmailsSent: number;
+}
+
 export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?: string, sessionStartTime: number = Date.now()) {
   const reposPath = join(process.cwd(), "repositories.json");
   const repos = JSON.parse(readFileSync(reposPath, "utf8")) as string[];
@@ -53,7 +60,9 @@ export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?
   let state = {
     workRoot: "",
     repoDir: "",
+    activeRepo: selected,
     visitedRepos: [] as string[],
+    repoStats: new Map<string, RepoAuditStats>(),
     issuesCreated: [] as string[],
     prsCreated: [] as { url: string; issueNumber?: number; issueUrl?: string }[],
     errorsHandled: [] as string[],
@@ -61,6 +70,19 @@ export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?
     hasUnvalidatedChanges: false,
     validationFailures: [] as string[],
     validationPasses: [] as string[]
+  };
+
+  const getRepoStats = (repo: string): RepoAuditStats => {
+    const existing = state.repoStats.get(repo);
+    if (existing) return existing;
+    const stats: RepoAuditStats = {
+      repo,
+      issuesCreated: [],
+      advisoryEmailsSent: 0,
+      otherEmailsSent: 0
+    };
+    state.repoStats.set(repo, stats);
+    return stats;
   };
 
   const ctx: ToolContext = {
@@ -76,6 +98,8 @@ export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?
     setRepoDir: (dir) => state.repoDir = dir,
     addVisitedRepo: (repo) => {
       if (!state.visitedRepos.includes(repo)) state.visitedRepos.push(repo);
+      state.activeRepo = repo;
+      getRepoStats(repo);
     },
     markFilesChanged: () => {
       state.hasUnvalidatedChanges = true;
@@ -223,14 +247,20 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
                 
                 // Enhanced results logging
                 if (call.name === "list_files" && toolResult.fileList) {
+                  getRepoStats(state.activeRepo);
                   const files = toolResult.fileList.split("\n");
                   const snippet = files.slice(0, 5).join(", ");
                   console.log(`  - Found ${files.length} files. Snippet: [${snippet}${files.length > 5 ? ", ..." : ""}]`);
+                }
+                if (call.name === "list_issues" && call.args.owner && call.args.repo) {
+                  getRepoStats(`${call.args.owner}/${call.args.repo}`);
                 }
 
                 // Track successful creations
                 if (call.name === "create_github_issue" && toolResult.url) {
                   state.issuesCreated.push(toolResult.url);
+                  const repo = call.args.owner && call.args.repo ? `${call.args.owner}/${call.args.repo}` : state.activeRepo;
+                  getRepoStats(repo).issuesCreated.push(toolResult.url);
                 }
                 if (call.name === "create_pull_request" && toolResult.url) {
                   state.prsCreated.push({ 
@@ -238,6 +268,15 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
                     issueNumber: call.args.issue_number,
                     issueUrl: call.args.issue_url
                   });
+                }
+                if (call.name === "send_email" && toolResult.status === "success") {
+                  const subject = String(call.args.subject || "");
+                  const stats = getRepoStats(state.activeRepo);
+                  if (/architectural advisory|advisory/i.test(subject)) {
+                    stats.advisoryEmailsSent++;
+                  } else {
+                    stats.otherEmailsSent++;
+                  }
                 }
 
                 // Handle Hopping
@@ -306,6 +345,8 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
 
     return {
       repo: selected,
+      repositoriesProcessed: state.visitedRepos,
+      repoBreakdown: [...state.repoStats.values()],
       issuesCreated: state.issuesCreated,
       prsCreated: state.prsCreated,
       errors: state.errorsHandled,
@@ -322,6 +363,8 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
     }
     return {
       repo: selected,
+      repositoriesProcessed: state.visitedRepos,
+      repoBreakdown: [...state.repoStats.values()],
       issuesCreated: [],
       prsCreated: [],
       errors: [error.message],
