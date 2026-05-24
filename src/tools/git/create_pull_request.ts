@@ -22,6 +22,18 @@ export const createPullRequestTool = defineTool({
   },
   execute: async ({ owner, repo, branch_name, title, body, issue_number }: { owner: string; repo: string; branch_name: string; title: string; body: string; issue_number?: number; issue_url?: string }, ctx) => {
     if (!ctx.octokit) return { status: "skipped", reason: "No GITHUB_TOKEN" };
+    if (ctx.hasUnvalidatedChanges || ctx.validationPasses.length === 0 || ctx.validationFailures.length > 0) {
+      return {
+        status: "error",
+        message: [
+          "Validation gate blocked pull request creation.",
+          "Before creating a PR, inspect the target repository's package.json, lockfiles, and .github/workflows, then choose and run the validation commands that match that repository.",
+          "If validation fails, fix the failure and rerun the selected validation commands until they pass.",
+          ctx.validationPasses.length > 0 ? `Passing validation observed: ${ctx.validationPasses.join("; ")}` : "No passing validation command has been observed after the latest code change.",
+          ctx.validationFailures.length > 0 ? `Failing validation observed: ${ctx.validationFailures.join("; ")}` : ""
+        ].filter(Boolean).join(" ")
+      };
+    }
     
     // Validate branch_name to prevent command injection
     if (!/^[a-zA-Z0-9_./-]+$/.test(branch_name)) {

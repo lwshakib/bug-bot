@@ -63,7 +63,7 @@ export const createHandlers = (ctx: ToolContext) => {
     create_github_issue: (args: { owner: string; repo: string; title: string; body: string; labels?: string[] }) => Promise<any>;
     replace_lines: (args: { file_path: string; start_line: number; end_line: number; replacementContent: string }) => Promise<any>;
     run_command: (args: { command: string }) => Promise<any>;
-    start_background_command: (args: { command: string }) => Promise<any>;
+    start_background_command: (args: { command: string; is_validation?: boolean }) => Promise<any>;
     check_command_status: (args: { command_id: string }) => Promise<any>;
     terminate_command: (args: { command_id: string }) => Promise<any>;
     wait_for_command: (args: { command_id: string; timeout_seconds: number }) => Promise<any>;

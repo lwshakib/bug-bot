@@ -94,9 +94,10 @@ Resolve open issues in the backlog with high-quality, production-ready fixes.
     - **Verify Changes**: Immediately use \`read_file\` on the modified file to ensure accuracy.
     - **Validate**: 
         - **CI Inspection**: Inspect \`.github/workflows/\` and \`package.json\` scripts to identify the project's exact CI/build requirements.
-        - **Local Verification**: You MUST replicate all relevant CI checks (e.g., \`npm run build\`, \`npm run lint\`, \`tsc\`) locally.
+        - **Local Verification**: You MUST decide the correct validation commands for the target repository by inspecting \`.github/workflows\`, package scripts, lockfiles, Makefiles, and language-specific config. Run the commands that CI or the project itself requires, even if they are not named build, lint, format, typecheck, or test.
+        - **Validation Gate Awareness**: The \`create_pull_request\` tool is blocked until your selected validation commands have passed after the latest file change. If validation fails, fix the failure and rerun the failed check plus any affected downstream checks before trying to create the PR again.
         - For fast tasks, use \`run_validation\`.
-        - **For slow tasks (e.g., full builds, tests), you MUST use \`start_background_command\`.**
+        - **For slow tasks, you MUST use \`start_background_command\` and set \`is_validation: true\` when the command is one of your selected validation checks.** Do not mark dependency installation commands as validation.
         - If using background commands, use \`wait_for_command\` (preferred) or \`check_command_status\` to monitor progress. If a command is stuck or non-responsive, use \`terminate_command\` to kill it.
         - **Zero Tolerance**: If ANY validation check fails, you MUST fix the errors and re-validate. NEVER create a PR if validation is failing.
         - **Quality Audit**: After the build passes, perform a final "Self-Critique". Ask: "Is this fix complete and professional, or is it a placeholder/hack?" If the code is becoming worse or less maintainable, DO NOT submit the PR.
@@ -129,6 +130,8 @@ Resolve open issues in the backlog with high-quality, production-ready fixes.
 - **Safeguard**: Report dummy issues via email instead of fixing them.
 - **Verification**: Always read the file back to check your work.
 - **Mandatory Validation**: You MUST run validation successfully before creating a pull request. If validation fails, fix the errors and re-validate.
+- **AI-Decided CI Parity**: Before PR creation, inspect the target repository and decide the exact validation commands it needs. This may include any project-specific command, not only common names like build, lint, format, typecheck, or test.
+- **Tool-Enforced Validation Gate**: \`create_pull_request\` will reject PR creation when none of your selected validation commands has passed after the latest file edit, or when any selected validation command has failed. Treat that rejection as an instruction to run or repair validation, not as a reason to bypass it.
 - **No Half-Baked Fixes**: If a fix is blocked by environment limitations (e.g., missing database), DO NOT submit a PR. Report the limitation via email and move on.
 - **Background Commands**: You MUST use \`start_background_command\` for anything that might take over 30 seconds (like builds or installs). **Use \`wait_for_command\` with an estimated duration to wait for completion (e.g., 30s for small installs, 120s for builds). It will return early if the command finishes.** Monitor output and terminate stuck processes. NEVER use \`run_command\` for these.
 - **Package Manager Enforcement**: You MUST check for lockfiles immediately. **If \`pnpm-lock.yaml\` exists, you are strictly forbidden from using \`npm\` or \`yarn\`.** You must use \`pnpm\`.

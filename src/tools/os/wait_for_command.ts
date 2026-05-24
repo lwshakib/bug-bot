@@ -14,7 +14,7 @@ export const waitForCommandTool = defineTool({
       required: ["command_id", "timeout_seconds"]
     }
   },
-  execute: async ({ command_id, timeout_seconds }: { command_id: string; timeout_seconds: number }) => {
+  execute: async ({ command_id, timeout_seconds }: { command_id: string; timeout_seconds: number }, ctx) => {
     const session = activeCommands.get(command_id);
     if (!session) return { status: "error", message: `Command ID ${command_id} not found.` };
     
@@ -24,6 +24,9 @@ export const waitForCommandTool = defineTool({
     // Poll every 2 seconds until the command finishes or the timeout is reached
     while (session.exitCode === null && (Date.now() - startTime) < timeoutMs) {
       await new Promise(r => setTimeout(r, 2000));
+    }
+    if (session.exitCode !== null && session.isValidation) {
+      ctx.recordValidationResult(session.command, session.exitCode);
     }
     
     return {

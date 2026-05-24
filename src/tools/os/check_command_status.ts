@@ -13,9 +13,12 @@ export const checkCommandStatusTool = defineTool({
       required: ["command_id"]
     }
   },
-  execute: async ({ command_id }: { command_id: string }) => {
+  execute: async ({ command_id }: { command_id: string }, ctx) => {
     const session = activeCommands.get(command_id);
     if (!session) return { status: "error", message: `Command ID ${command_id} not found.` };
+    if (session.exitCode !== null && session.isValidation) {
+      ctx.recordValidationResult(session.command, session.exitCode);
+    }
     
     return {
       status: "success",

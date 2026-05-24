@@ -10,18 +10,21 @@ export const startBackgroundCommandTool = defineTool({
     parameters: {
       type: Type.OBJECT,
       properties: {
-        command: { type: Type.STRING, description: "The shell command to execute." }
+        command: { type: Type.STRING, description: "The shell command to execute." },
+        is_validation: { type: Type.BOOLEAN, description: "Set true only when this command is a validation/check command chosen from the target repository's CI or scripts." }
       },
       required: ["command"]
     }
   },
-  execute: async ({ command }: { command: string }, ctx) => {
+  execute: async ({ command, is_validation }: { command: string; is_validation?: boolean }, ctx) => {
     if (!ctx.repoDir) return { status: "skipped", reason: "No repository cloned" };
     const commandId = Math.random().toString(36).substring(7);
     const child = spawn(command, { shell: true, cwd: ctx.repoDir });
     
     const session: CommandSession = {
       process: child,
+      command,
+      isValidation: is_validation === true,
       stdout: "",
       stderr: "",
       exitCode: null,

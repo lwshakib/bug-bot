@@ -29,8 +29,11 @@ export const runValidationTool = defineTool({
       for (const cmd of commands) {
         try {
           const output = execSync(cmd, { cwd: ctx.repoDir, stdio: "pipe", encoding: "utf8", timeout: 300000 });
+          ctx.recordValidationResult(cmd, 0);
           results.push({ command: cmd, status: "passed", output });
         } catch (e: any) {
+          const exitCode = typeof e.status === "number" ? e.status : 1;
+          ctx.recordValidationResult(cmd, exitCode);
           if (e.code === 'ETIMEDOUT') {
             results.push({ command: cmd, status: "failed", error: "Command timed out after 5 minutes." });
           } else {

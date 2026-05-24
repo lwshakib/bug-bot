@@ -57,7 +57,10 @@ export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?
     issuesCreated: [] as string[],
     prsCreated: [] as { url: string; issueNumber?: number; issueUrl?: string }[],
     errorsHandled: [] as string[],
-    networkRetryCount: 0
+    networkRetryCount: 0,
+    hasUnvalidatedChanges: false,
+    validationFailures: [] as string[],
+    validationPasses: [] as string[]
   };
 
   const ctx: ToolContext = {
@@ -66,10 +69,27 @@ export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?
     get workRoot() { return state.workRoot; },
     get repoDir() { return state.repoDir; },
     get visitedRepos() { return state.visitedRepos; },
+    get hasUnvalidatedChanges() { return state.hasUnvalidatedChanges; },
+    get validationFailures() { return state.validationFailures; },
+    get validationPasses() { return state.validationPasses; },
     setWorkRoot: (dir) => state.workRoot = dir,
     setRepoDir: (dir) => state.repoDir = dir,
     addVisitedRepo: (repo) => {
       if (!state.visitedRepos.includes(repo)) state.visitedRepos.push(repo);
+    },
+    markFilesChanged: () => {
+      state.hasUnvalidatedChanges = true;
+      state.validationFailures = [];
+      state.validationPasses = [];
+    },
+    recordValidationResult: (command, exitCode) => {
+      const entry = `${command} exited with ${exitCode}`;
+      if (exitCode === 0) {
+        state.validationPasses.push(entry);
+      } else {
+        state.validationFailures.push(entry);
+      }
+      state.hasUnvalidatedChanges = state.validationPasses.length === 0 || state.validationFailures.length > 0;
     },
     terminateAllCommands
   };

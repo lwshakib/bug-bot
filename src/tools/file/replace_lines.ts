@@ -45,6 +45,7 @@ export const replaceLinesTool = defineTool({
     const newContent = [...before, replacementContent, ...after].join("\n");
     
     writeFileSync(fullPath, newContent);
+    ctx.markFilesChanged();
     return { status: "success" };
   }
 });

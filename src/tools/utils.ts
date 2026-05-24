@@ -7,14 +7,21 @@ export interface ToolContext {
   workRoot: string;
   repoDir: string;
   visitedRepos: string[];
+  hasUnvalidatedChanges: boolean;
+  validationFailures: string[];
+  validationPasses: string[];
   setRepoDir: (dir: string) => void;
   setWorkRoot: (dir: string) => void;
   addVisitedRepo: (repo: string) => void;
+  markFilesChanged: () => void;
+  recordValidationResult: (command: string, exitCode: number | null) => void;
   terminateAllCommands: () => void;
 }
 
 export interface CommandSession {
   process: ChildProcess;
+  command: string;
+  isValidation: boolean;
   stdout: string;
   stderr: string;
   exitCode: number | null;
