@@ -2,6 +2,28 @@ import { Type } from "@google/genai";
 import { defineTool } from "../utils.js";
 import { execSync } from "node:child_process";
 
+function isDependencyInstallCommand(command: string): boolean {
+  return [
+    /\b(?:npm|pnpm|yarn|bun)\s+(?:install|i|add|update|upgrade|ci)\b/i,
+    /\b(?:pip|pip3)\s+install\b/i,
+    /\bcomposer\s+(?:install|update|require)\b/i,
+    /\bbundle\s+install\b/i,
+    /\bgo\s+get\b/i,
+    /\bcargo\s+(?:install|add|update)\b/i
+  ].some(pattern => pattern.test(command));
+}
+
+function isShellFileMutationCommand(command: string): boolean {
+  return [
+    /\bsed\s+[^;&|]*-[a-z]*i[a-z]*\b/i,
+    /\bperl\s+[^;&|]*-[a-z]*i[a-z]*\b/i,
+    /\bpython(?:3)?\s+-c\b/i,
+    /\bnode\s+-e\b/i,
+    />\s*[^&\s]/,
+    />>\s*[^&\s]/
+  ].some(pattern => pattern.test(command));
+}
+
 export const runCommandTool = defineTool({
   declaration: {
     name: "run_command",
@@ -17,6 +39,18 @@ export const runCommandTool = defineTool({
   },
   execute: async ({ command, is_validation }: { command: string; is_validation?: boolean }, ctx) => {
     if (!ctx.repoDir) return { status: "skipped", reason: "No repository cloned" };
+    if (isDependencyInstallCommand(command)) {
+      return {
+        status: "error",
+        message: "Dependency installation commands must use start_background_command, not run_command. Start the install in the background, continue independent work if possible, then monitor it with wait_for_command or check_command_status."
+      };
+    }
+    if (isShellFileMutationCommand(command)) {
+      return {
+        status: "error",
+        message: "Shell-based file mutation is not allowed through run_command. Use read_file and replace_lines so edits are tracked, reviewed, and validated before PR creation."
+      };
+    }
     try {
       console.log(`Running CLI command: ${command}`);
       const output = execSync(command, { cwd: ctx.repoDir, stdio: "pipe", encoding: "utf8", timeout: 300000 });
