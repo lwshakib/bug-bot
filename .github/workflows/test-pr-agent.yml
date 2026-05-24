@@ -33,4 +33,5 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NODE_ENV: ${{ secrets.NODE_ENV }}
         run: npm run pr-agent
