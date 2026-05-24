@@ -39,24 +39,11 @@ export const RETRY_503_BURST_DELAY = 2000; // 2 seconds
 export const RETRY_503_LONG_DELAY = 60000; // 1 minute
 
 /**
- * RETRY LOGIC: TOOL FAILURES
- * Number of times a single tool (e.g., search_code) will retry before passing an error to the AI.
- */
-export const MAX_TOOL_RETRIES = 5;
-export const TOOL_RETRY_DELAY = 2000; // 2 seconds
-
-/**
  * RETRY LOGIC: GLOBAL SESSION FAILURE
  * If a repository session crashes, we wait this long before the final attempt.
  */
 export const GLOBAL_SESSION_RETRY_COUNT = 1;
 export const GLOBAL_SESSION_RETRY_DELAY = 300000; // 5 minutes
-
-/**
- * AI-DRIVEN RECOVERY: WAIT TIME
- * The amount of time the AI is instructed to wait when it identifies a transient error.
- */
-export const AI_RECOVERY_WAIT_TIME = "5 minutes";
 
 /**
  * The maximum allowed duration for a single agent session (Issue or PR mode).

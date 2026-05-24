@@ -28,7 +28,7 @@ The agent is built with multiple layers of "self-healing" logic:
 | :--- | :--- |
 | **429 (Rate Limit)** | Progressive backoff (1m, 4m, 5m delays). |
 | **503 (Unavailable)** | 3 burst retries followed by two 1-minute wait cycles. |
-| **Tool Failure** | 5 retries, then passes the error to AI for diagnostic self-correction. |
+| **Tool Failure** | Immediately returns the error to AI for diagnostic self-correction and next-step selection. |
 | **Session Failure** | Global failover: Wait 5m and retry the entire session once. |
 | **Timeout** | Mandatory 1-hour hard limit for all sessions to prevent resource leaks. |
 

@@ -13,7 +13,6 @@ import { toolDefinitions, createHandlers, terminateAllCommands } from "./tools.j
 import type { ToolContext } from "./tools.js";
 import { 
   MAX_TOOL_CALLS, 
-  MAX_TOOL_RETRIES, 
   MAX_NETWORK_RETRIES,
   RETRY_NETWORK_DELAY,
   RETRY_429_DELAY_1, 
@@ -22,8 +21,6 @@ import {
   RETRY_503_BURST_COUNT,
   RETRY_503_BURST_DELAY,
   RETRY_503_LONG_DELAY,
-  TOOL_RETRY_DELAY,
-  AI_RECOVERY_WAIT_TIME,
   SESSION_TIMEOUT_MS,
   DEFAULT_MODEL_ID
 } from "./constants.js";
@@ -234,94 +231,86 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
           console.log(`[${toolCallCount}] Running tool: ${call.name}${callDetails}`);
           
           let toolResult: any;
-          let toolRetries = 0;
 
           const handler = handlers[call.name];
           if (!handler) {
             toolResult = { status: "error", message: `Tool handler not found: ${call.name}` };
           } else {
-            while (toolRetries < MAX_TOOL_RETRIES) {
-              try {
-                toolResult = await handler(call.args);
-                if (toolResult.status === "error") throw new Error(toolResult.message);
-                
-                // Enhanced results logging
-                if (call.name === "list_files" && toolResult.fileList) {
-                  getRepoStats(state.activeRepo);
-                  const files = toolResult.fileList.split("\n");
-                  const snippet = files.slice(0, 5).join(", ");
-                  console.log(`  - Found ${files.length} files. Snippet: [${snippet}${files.length > 5 ? ", ..." : ""}]`);
-                }
-                if (call.name === "list_issues" && call.args.owner && call.args.repo) {
-                  getRepoStats(`${call.args.owner}/${call.args.repo}`);
-                }
+            try {
+              toolResult = await handler(call.args);
+              if (toolResult.status === "error") throw new Error(toolResult.message);
+              
+              // Enhanced results logging
+              if (call.name === "list_files" && toolResult.fileList) {
+                getRepoStats(state.activeRepo);
+                const files = toolResult.fileList.split("\n");
+                const snippet = files.slice(0, 5).join(", ");
+                console.log(`  - Found ${files.length} files. Snippet: [${snippet}${files.length > 5 ? ", ..." : ""}]`);
+              }
+              if (call.name === "list_issues" && call.args.owner && call.args.repo) {
+                getRepoStats(`${call.args.owner}/${call.args.repo}`);
+              }
 
-                // Track successful creations
-                if (call.name === "create_github_issue" && toolResult.url) {
-                  state.issuesCreated.push(toolResult.url);
-                  const repo = call.args.owner && call.args.repo ? `${call.args.owner}/${call.args.repo}` : state.activeRepo;
-                  getRepoStats(repo).issuesCreated.push(toolResult.url);
-                }
-                if (call.name === "create_pull_request" && toolResult.url) {
-                  state.prsCreated.push({ 
-                    url: toolResult.url, 
-                    issueNumber: call.args.issue_number,
-                    issueUrl: call.args.issue_url
-                  });
-                }
-                if (call.name === "send_email" && toolResult.status === "success") {
-                  const subject = String(call.args.subject || "");
-                  const stats = getRepoStats(state.activeRepo);
-                  if (/architectural advisory|advisory/i.test(subject)) {
-                    stats.advisoryEmailsSent++;
-                  } else {
-                    stats.otherEmailsSent++;
-                  }
-                }
-
-                // Handle Hopping
-                if (call.name === "hop_to_next_repo" && toolResult.action === "HOP_REQUESTED") {
-                  console.log(`[HOP] Moving to next repository: ${toolResult.next_repo}`);
-                  
-                  // 1. Cleanup current repo
-                  if (state.workRoot) {
-                    try { rmSync(state.workRoot, { recursive: true, force: true }); } catch (e) {}
-                  }
-                  
-                  // 2. Set new repo state
-                  state.repoDir = "";
-                  state.workRoot = "";
-                  ctx.addVisitedRepo(toolResult.next_repo);
-                  
-                  // 3. Clone the new one immediately so next tools work
-                  const cloneHandler = handlers["clone_repository"];
-                  if (cloneHandler) {
-                    const cloneRes = await cloneHandler({ repo_name: toolResult.next_repo });
-                    toolResult.clone_status = cloneRes.status;
-                  }
-                }
-                
-                break; // Tool success
-              } catch (e: any) {
-                const inputError = isInputError(e.message);
-                if (inputError) {
-                  console.log(`[INPUT ERROR] ${call.name}: ${e.message}. Skipping retries.`);
-                  toolResult = { status: "error", message: `Tool ${call.name} failed with an input error: ${e.message}. Please correct your arguments and try again.` };
-                  break; 
-                }
-
-                toolRetries++;
-                state.errorsHandled.push(`[${call.name}] ${e.message}`);
-                console.error(`Tool error (${call.name}): ${e.message}. Retry ${toolRetries}/${MAX_TOOL_RETRIES}`);
-                await sleep(TOOL_RETRY_DELAY);
-                if (toolRetries === MAX_TOOL_RETRIES) {
-                  console.log(`Tool ${call.name} exhausted retries. Passing error back to AI.`);
-                  toolResult = { 
-                    status: "error", 
-                    message: `Tool ${call.name} failed after ${MAX_TOOL_RETRIES} attempts. Error: ${e.message}. If this is a transient network/API error, you should wait ${AI_RECOVERY_WAIT_TIME} and try again. If it is an input error, correct your arguments.` 
-                  };
+              // Track successful creations
+              if (call.name === "create_github_issue" && toolResult.url) {
+                state.issuesCreated.push(toolResult.url);
+                const repo = call.args.owner && call.args.repo ? `${call.args.owner}/${call.args.repo}` : state.activeRepo;
+                getRepoStats(repo).issuesCreated.push(toolResult.url);
+              }
+              if (call.name === "create_pull_request" && toolResult.url) {
+                state.prsCreated.push({ 
+                  url: toolResult.url, 
+                  issueNumber: call.args.issue_number,
+                  issueUrl: call.args.issue_url
+                });
+              }
+              if (call.name === "send_email" && toolResult.status === "success") {
+                const subject = String(call.args.subject || "");
+                const stats = getRepoStats(state.activeRepo);
+                if (/architectural advisory|advisory/i.test(subject)) {
+                  stats.advisoryEmailsSent++;
+                } else {
+                  stats.otherEmailsSent++;
                 }
               }
+
+              // Handle Hopping
+              if (call.name === "hop_to_next_repo" && toolResult.action === "HOP_REQUESTED") {
+                console.log(`[HOP] Moving to next repository: ${toolResult.next_repo}`);
+                
+                // 1. Cleanup current repo
+                if (state.workRoot) {
+                  try { rmSync(state.workRoot, { recursive: true, force: true }); } catch (e) {}
+                }
+                
+                // 2. Set new repo state
+                state.repoDir = "";
+                state.workRoot = "";
+                ctx.addVisitedRepo(toolResult.next_repo);
+                
+                // 3. Clone the new one immediately so next tools work
+                const cloneHandler = handlers["clone_repository"];
+                if (cloneHandler) {
+                  const cloneRes = await cloneHandler({ repo_name: toolResult.next_repo });
+                  toolResult.clone_status = cloneRes.status;
+                }
+              }
+            } catch (e: any) {
+              const messageText = e?.message || String(e);
+              const inputError = isInputError(messageText);
+              const diagnosis = inputError
+                ? "This looks like an input or configuration problem. Correct the arguments, choose a different tool, report the limitation, or move to the next item."
+                : "Decide whether this is transient, recoverable, blocked by environment/auth, or should be skipped with an explanatory email. Do not repeat the same tool call unchanged unless you have a specific reason.";
+
+              state.errorsHandled.push(`[${call.name}] ${messageText}`);
+              console.error(`Tool error (${call.name}): ${messageText}. Passing to AI for decision.`);
+              toolResult = {
+                status: "error",
+                message: `Tool ${call.name} failed: ${messageText}`,
+                failedTool: call.name,
+                failedArgs: call.args,
+                guidance: diagnosis
+              };
             }
           }
           
