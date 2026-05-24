@@ -115,6 +115,11 @@ async function main() {
 3. For any "DUMMY" issues, also provide a concrete "solve" recommendation under "whatToDoNow" (e.g. why it is low value, if it should be closed, or how it can be addressed/cleaned up).
 4. Generate a prioritized list of repositories to process. Rank them by the total volume of high-impact "REAL_BUG" issues.
 
+Important classification policy:
+- Complex implementation work is NOT dummy work. Issues involving worker threads, background processes, IPC, multi-file refactors, validation failures, or architecture changes should remain "REAL_BUG" when they describe a real functional, performance, reliability, or security problem.
+- Only classify an issue as "DUMMY" when it is genuinely placeholder, low-value, non-actionable, duplicate/no-op, or about safe sample data/environment defaults with no concrete runtime impact.
+- If an issue is real but risky or may require manual product/architecture decisions, keep it in the real backlog. The PR Agent will later decide whether it can safely fix and validate it or should send a detailed manual-resolution email.
+
 Backlogs:
 ${JSON.stringify(portfolioBacklog, null, 2)}
 
