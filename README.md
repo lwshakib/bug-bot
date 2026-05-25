@@ -58,6 +58,17 @@ At the end of every session, the agent delivers a **Grand Report** email includi
 *   **Backward Compatibility**: Supports single-file reads via the legacy `file_path` parameter.
 *   **Error Tolerance**: Validates paths and resolves files independently; a path-traversal or missing file error in a batch will not block the recovery of other valid files.
 
+### 3. **Multi-Language AST Code Outliner**
+*   **TypeScript/JavaScript**: Uses the official TypeScript compiler AST parser for 100% syntactic precision.
+*   **Python, Go, Java, C, C++, C#, PHP, Ruby, Rust**: Uses a custom scope-based structural regex parser to extract classes, methods, functions, interfaces, structs, enums, modules, and trait implementation blocks with exact line numbers.
+*   **Tool**: `extract_code_structure` — understand any file's architecture instantly without reading every line.
+
+### 4. **Offline Semantic Code Search**
+*   **Local Embeddings**: Uses Hugging Face `all-MiniLM-L6-v2` via `@xenova/transformers` — runs 100% offline with zero API calls.
+*   **Cached Index**: Embeddings are stored in `.embeddings_cache.json` for instant retrieval on subsequent queries.
+*   **Conceptual Search**: Find code by intent (e.g., "JWT token validation", "database connection pooling") rather than exact string matching.
+*   **Tool**: `semantic_search_code` — search by concept across the entire repository.
+
 ---
 
 ## 🛠️ Configuration
