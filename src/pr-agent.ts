@@ -117,6 +117,7 @@ async function main() {
 
 Important classification policy:
 - Complex implementation work is NOT dummy work. Issues involving worker threads, background processes, IPC, multi-file refactors, validation failures, or architecture changes should remain "REAL_BUG" when they describe a real functional, performance, reliability, or security problem.
+- Descriptive error logging context improvements (such as replacing \`console.error(error)\` with descriptive error messages like \`console.error("Failed to set side panel behavior:", error)\`), enhancing error messaging, and minor string or text configuration adjustments are NOT dummy, low-value, or placeholder work. They represent real diagnostics and code quality improvements and MUST be categorized as "REAL_BUG".
 - Only classify an issue as "DUMMY" when it is genuinely placeholder, low-value, non-actionable, duplicate/no-op, or about safe sample data/environment defaults with no concrete runtime impact.
 - If an issue is real but risky or may require manual product/architecture decisions, keep it in the real backlog. The PR Agent will later decide whether it can safely fix and validate it or should send a detailed manual-resolution email.
 
