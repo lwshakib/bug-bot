@@ -4,6 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isProduction } from "../../env.js";
+import { inspectCIConfiguration } from "../ci_discovery.js";
 
 export const cloneRepositoryTool = defineTool({
   declaration: {
@@ -35,6 +36,16 @@ export const cloneRepositoryTool = defineTool({
       url = url.replace("https://github.com/", `https://x-access-token:${ctx.githubToken}@github.com/`);
     }
     run(`git clone --depth 1 "${url}" "${repoDir}"`, process.cwd());
-    return { status: "success", repoDir };
+
+    // Inspect CI configuration and pass raw content to the AI for decision-making
+    const ciInfo = inspectCIConfiguration(repoDir);
+
+    return { 
+      status: "success", 
+      repoDir,
+      packageManager: ciInfo.packageManager,
+      ciConfiguration: ciInfo.summary,
+      instruction: "IMPORTANT: Review the CI configuration above carefully. You MUST identify ALL validation/check/build/lint/format/typecheck commands from the workflows and package.json scripts, then run EVERY SINGLE ONE as validation (with is_validation: true) before creating a PR. If ANY validation fails, fix the errors and re-run until all pass."
+    };
   }
 });

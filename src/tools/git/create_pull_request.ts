@@ -22,13 +22,15 @@ export const createPullRequestTool = defineTool({
   },
   execute: async ({ owner, repo, branch_name, title, body, issue_number }: { owner: string; repo: string; branch_name: string; title: string; body: string; issue_number?: number; issue_url?: string }, ctx) => {
     if (!ctx.octokit) return { status: "skipped", reason: "No GITHUB_TOKEN" };
+
+    // --- Validation gate: At least one validation must pass, none can be failing ---
     if (ctx.hasUnvalidatedChanges || ctx.validationPasses.length === 0 || ctx.validationFailures.length > 0) {
       return {
         status: "error",
         message: [
           "Validation gate blocked pull request creation.",
-          "Before creating a PR, inspect the target repository's package.json, lockfiles, and .github/workflows, then choose and run the validation commands that match that repository.",
-          "If validation fails, fix the failure and rerun the selected validation commands until they pass.",
+          "You MUST run ALL validation commands found in the repository's CI workflows and package.json scripts (build, lint, format, typecheck, test, etc.) with is_validation: true.",
+          "If validation fails, you MUST fix the errors and re-run ALL failed checks until they pass. Do NOT skip failing checks or attempt to create a PR with known failures.",
           ctx.validationPasses.length > 0 ? `Passing validation observed: ${ctx.validationPasses.join("; ")}` : "No passing validation command has been observed after the latest code change.",
           ctx.validationFailures.length > 0 ? `Failing validation observed: ${ctx.validationFailures.join("; ")}` : ""
         ].filter(Boolean).join(" ")

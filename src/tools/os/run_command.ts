@@ -1,28 +1,12 @@
 import { Type } from "@google/genai";
-import { defineTool } from "../utils.js";
+import { 
+  defineTool, 
+  isBroadRecursiveSearchCommand,
+  isDependencyInstallCommand,
+  isGlobalPackageInstallCommand,
+  isShellFileMutationCommand
+} from "../utils.js";
 import { execSync } from "node:child_process";
-
-function isDependencyInstallCommand(command: string): boolean {
-  return [
-    /\b(?:npm|pnpm|yarn|bun)\s+(?:install|i|add|update|upgrade|ci)\b/i,
-    /\b(?:pip|pip3)\s+install\b/i,
-    /\bcomposer\s+(?:install|update|require)\b/i,
-    /\bbundle\s+install\b/i,
-    /\bgo\s+get\b/i,
-    /\bcargo\s+(?:install|add|update)\b/i
-  ].some(pattern => pattern.test(command));
-}
-
-function isShellFileMutationCommand(command: string): boolean {
-  return [
-    /\bsed\s+[^;&|]*-[a-z]*i[a-z]*\b/i,
-    /\bperl\s+[^;&|]*-[a-z]*i[a-z]*\b/i,
-    /\bpython(?:3)?\s+-c\b/i,
-    /\bnode\s+-e\b/i,
-    />\s*[^&\s]/,
-    />>\s*[^&\s]/
-  ].some(pattern => pattern.test(command));
-}
 
 export const runCommandTool = defineTool({
   declaration: {
@@ -39,6 +23,12 @@ export const runCommandTool = defineTool({
   },
   execute: async ({ command, is_validation }: { command: string; is_validation?: boolean }, ctx) => {
     if (!ctx.repoDir) return { status: "skipped", reason: "No repository cloned" };
+    if (isGlobalPackageInstallCommand(command)) {
+      return {
+        status: "error",
+        message: "Global package manager installation is not allowed. Use the package manager already selected by the repository lockfile, use corepack if available, or report a setup limitation instead of mutating the global environment."
+      };
+    }
     if (isDependencyInstallCommand(command)) {
       return {
         status: "error",
@@ -49,6 +39,12 @@ export const runCommandTool = defineTool({
       return {
         status: "error",
         message: "Shell-based file mutation is not allowed through run_command. Use read_file and replace_lines so edits are tracked, reviewed, and validated before PR creation."
+      };
+    }
+    if (isBroadRecursiveSearchCommand(command)) {
+      return {
+        status: "error",
+        message: "Broad recursive shell searches are not allowed through run_command. Use search_code for repository searches, or list_files/read_file for targeted inspection."
       };
     }
     try {

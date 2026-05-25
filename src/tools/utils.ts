@@ -30,6 +30,44 @@ export interface CommandSession {
 
 export const activeCommands = new Map<string, CommandSession>();
 
+export function isDependencyInstallCommand(command: string): boolean {
+  return [
+    /\b(?:npm|pnpm|yarn|bun)\s+(?:install|i|add|update|upgrade|ci)\b/i,
+    /\b(?:pip|pip3)\s+install\b/i,
+    /\bcomposer\s+(?:install|update|require)\b/i,
+    /\bbundle\s+install\b/i,
+    /\bgo\s+get\b/i,
+    /\bcargo\s+(?:install|add|update)\b/i
+  ].some(pattern => pattern.test(command));
+}
+
+export function isGlobalPackageInstallCommand(command: string): boolean {
+  return [
+    /\bnpm\s+(?:install|i)\b[^;&|]*(?:--global|-g)\b/i,
+    /\bpnpm\s+(?:add|install)\b[^;&|]*(?:--global|-g)\b/i,
+    /\byarn\s+global\s+add\b/i,
+    /\bbun\s+add\s+(?:--global|-g)\b/i
+  ].some(pattern => pattern.test(command));
+}
+
+export function isShellFileMutationCommand(command: string): boolean {
+  return [
+    /\bsed\s+[^;&|]*-[a-z]*i[a-z]*\b/i,
+    /\bperl\s+[^;&|]*-[a-z]*i[a-z]*\b/i,
+    /\bpython(?:3)?\s+-c\b/i,
+    /\bnode\s+-e\b/i,
+    />\s*[^&\s]/,
+    />>\s*[^&\s]/
+  ].some(pattern => pattern.test(command));
+}
+
+export function isBroadRecursiveSearchCommand(command: string): boolean {
+  return [
+    /\bgrep\b[^|;&]*(?:--recursive|-[a-zA-Z]*[rR])/,
+    /\bfind\s+\.\/?\s(?!.*\b-maxdepth\b)/i
+  ].some(pattern => pattern.test(command));
+}
+
 export const terminateAllCommands = () => {
   console.log(`[CLEANUP] Terminating ${activeCommands.size} active background commands...`);
   for (const [id, session] of activeCommands.entries()) {

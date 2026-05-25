@@ -1,5 +1,5 @@
 import { Type } from "@google/genai";
-import { defineTool, activeCommands } from "../utils.js";
+import { defineTool, activeCommands, isGlobalPackageInstallCommand, isBroadRecursiveSearchCommand } from "../utils.js";
 import type { CommandSession } from "../utils.js";
 import { spawn } from "node:child_process";
 
@@ -18,6 +18,18 @@ export const startBackgroundCommandTool = defineTool({
   },
   execute: async ({ command, is_validation }: { command: string; is_validation?: boolean }, ctx) => {
     if (!ctx.repoDir) return { status: "skipped", reason: "No repository cloned" };
+    if (isGlobalPackageInstallCommand(command)) {
+      return {
+        status: "error",
+        message: "Global package manager installation is not allowed. Use the package manager already selected by the repository lockfile, use corepack if available, or report a setup limitation instead of mutating the global environment."
+      };
+    }
+    if (isBroadRecursiveSearchCommand(command)) {
+      return {
+        status: "error",
+        message: "Broad recursive shell searches are not allowed through start_background_command. Use search_code for repository searches, or list_files/read_file for targeted inspection."
+      };
+    }
     const commandId = Math.random().toString(36).substring(7);
     const child = spawn(command, { shell: true, cwd: ctx.repoDir });
     

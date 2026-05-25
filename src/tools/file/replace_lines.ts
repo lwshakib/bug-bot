@@ -42,7 +42,17 @@ export const replaceLinesTool = defineTool({
 
     const before = lines.slice(0, start - 1);
     const after = lines.slice(end);
-    const newContent = [...before, replacementContent, ...after].join("\n");
+
+    // Sanitize: The Gemini model sometimes double-escapes quotes in function call args,
+    // producing literal \" (backslash + quote) in the parsed string. Since the SDK already
+    // handles JSON deserialization, any remaining \" in the content is a model artifact.
+    let sanitized = replacementContent;
+    if (sanitized.includes('\\"')) {
+      console.log(`[SANITIZE] Fixing ${(sanitized.match(/\\"/g) || []).length} escaped quote artifact(s) in replacement content for ${file_path}`);
+      sanitized = sanitized.replace(/\\"/g, '"');
+    }
+
+    const newContent = [...before, sanitized, ...after].join("\n");
     
     writeFileSync(fullPath, newContent);
     ctx.markFilesChanged();
