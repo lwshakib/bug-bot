@@ -2,6 +2,49 @@ import { Type } from "@google/genai";
 import { defineTool } from "../utils.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import ts from "typescript";
+
+/**
+ * Validates the structural syntax of the edited file.
+ * Returns an error string if invalid, or null if syntax is clean.
+ */
+function validateSyntax(filePath: string, content: string): string | null {
+  const ext = filePath.split(".").pop()?.toLowerCase();
+  
+  if (ext === "json") {
+    try {
+      JSON.parse(content);
+    } catch (e: any) {
+      return `JSON parsing failed: ${e.message}`;
+    }
+    return null;
+  }
+
+  if (["ts", "js", "tsx", "jsx"].includes(ext || "")) {
+    try {
+      const sourceFile = ts.createSourceFile(
+        filePath,
+        content,
+        ts.ScriptTarget.Latest,
+        true
+      );
+      const diagnostics = (sourceFile as any).parseDiagnostics || [];
+      if (diagnostics.length > 0) {
+        const errors = diagnostics.map((d: any) => {
+          const { line, character } = ts.getLineAndCharacterOfPosition(sourceFile, d.start || 0);
+          const msg = ts.flattenDiagnosticMessageText(d.messageText, "\n");
+          return `Line ${line + 1}, Char ${character + 1}: ${msg}`;
+        });
+        return `TypeScript/JavaScript syntax errors: ${errors.join("; ")}`;
+      }
+    } catch (e: any) {
+      // Gracefully fall back if compiler fails to run
+      console.error(`[SYNTAX GATE] AST parser failed for ${filePath}: ${e.message}`);
+    }
+  }
+
+  return null;
+}
 
 export const replaceLinesTool = defineTool({
   declaration: {
@@ -54,6 +97,16 @@ export const replaceLinesTool = defineTool({
 
     const newContent = [...before, sanitized, ...after].join("\n");
     
+    // --- AST/Syntax Validation Gate ---
+    const syntaxError = validateSyntax(file_path, newContent);
+    if (syntaxError) {
+      console.log(`[SYNTAX GATE] Blocked write to ${file_path}: ${syntaxError}`);
+      return {
+        status: "error",
+        message: `Your code modification was rejected because it introduces a structural syntax error: ${syntaxError}. Please fix the syntax error in your replacementContent and try again.`
+      };
+    }
+
     writeFileSync(fullPath, newContent);
     ctx.markFilesChanged();
     return { status: "success" };
