@@ -282,10 +282,7 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
               if (call.name === "hop_to_next_repo" && toolResult.action === "HOP_REQUESTED") {
                 console.log(`[HOP] Moving to next repository: ${toolResult.next_repo}`);
                 
-                // 1. Cleanup current repo
-                if (state.workRoot) {
-                  try { rmSync(state.workRoot, { recursive: true, force: true }); } catch (e) {}
-                }
+                // 1. Cleanup current repo (disabled to preserve workspace/node_modules caching)
                 
                 // 2. Set new repo state
                 state.repoDir = "";
@@ -365,41 +362,7 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
     };
   } finally {
     terminateAllCommands();
-    if (state.workRoot) {
-      // Small delay for handles to release on Windows
-      await sleep(500);
-      let cleanupRetries = 0;
-      while (cleanupRetries < 3) {
-        try {
-          rmSync(state.workRoot, { recursive: true, force: true });
-          break;
-        } catch (e) {
-          cleanupRetries++;
-          if (cleanupRetries === 3) {
-            console.error(`[CLEANUP] Final failure to remove ${state.workRoot}:`, e);
-          } else {
-            console.log(`[CLEANUP] Retry ${cleanupRetries}/3 after EBUSY...`);
-            await sleep(2000);
-          }
-        }
-      }
-    }
-  }
-}
+    // Cleanup of workRoot is disabled to preserve workspace/node_modules caching
 
-export async function cloneRepositoryInternal(ctx: ToolContext, repo_name: string) {
-  const workRoot = mkdtempSync(join(tmpdir(), "repo-agent-"));
-  const repoDir = join(workRoot, "repo");
-  ctx.setWorkRoot(workRoot);
-  ctx.setRepoDir(repoDir);
-
-  try {
-    let url = repo_name.includes("://") ? repo_name : `https://github.com/${repo_name}.git`;
-    if (isProduction && ctx.githubToken && url.startsWith("https://github.com/")) {
-      url = url.replace("https://github.com/", `https://x-access-token:${ctx.githubToken}@github.com/`);
-    }
-  } catch (e) {
-    rmSync(workRoot, { recursive: true, force: true });
-    throw e;
   }
 }

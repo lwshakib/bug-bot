@@ -1,6 +1,6 @@
 import { Type } from "@google/genai";
 import { defineTool } from "../utils.js";
-import { execSync } from "node:child_process";
+import { exec } from "node:child_process";
 
 export const runValidationTool = defineTool({
   declaration: {
@@ -22,25 +22,29 @@ export const runValidationTool = defineTool({
     if (!ctx.repoDir) return { status: "skipped", reason: "No repository cloned" };
     if (!commands || commands.length === 0) return { status: "error", message: "You must provide specific validation commands." };
     
-    const results: any[] = [];
     try {
       console.log(`Executing validation: ${commands.join(", ")}`);
 
-      for (const cmd of commands) {
-        try {
-          const output = execSync(cmd, { cwd: ctx.repoDir, stdio: "pipe", encoding: "utf8", timeout: 300000 });
-          ctx.recordValidationResult(cmd, 0);
-          results.push({ command: cmd, status: "passed", output });
-        } catch (e: any) {
-          const exitCode = typeof e.status === "number" ? e.status : 1;
-          ctx.recordValidationResult(cmd, exitCode);
-          if (e.code === 'ETIMEDOUT') {
-            results.push({ command: cmd, status: "failed", error: "Command timed out after 5 minutes." });
-          } else {
-            results.push({ command: cmd, status: "failed", error: e.message, stdout: e.stdout, stderr: e.stderr });
-          }
-        }
-      }
+      const promises = commands.map(cmd => {
+        return new Promise<any>((resolve) => {
+          exec(cmd, { cwd: ctx.repoDir, timeout: 300000 }, (error, stdout, stderr) => {
+            if (error) {
+              const exitCode = typeof (error as any).code === "number" ? (error as any).code : 1;
+              ctx.recordValidationResult(cmd, exitCode);
+              if ((error as any).killed && (error as any).signal === 'SIGTERM') {
+                resolve({ command: cmd, status: "failed", error: "Command timed out after 5 minutes." });
+              } else {
+                resolve({ command: cmd, status: "failed", error: error.message, stdout, stderr });
+              }
+            } else {
+              ctx.recordValidationResult(cmd, 0);
+              resolve({ command: cmd, status: "passed", output: stdout });
+            }
+          });
+        });
+      });
+
+      const results = await Promise.all(promises);
 
       const allPassed = results.every(r => r.status !== "failed");
       return { 

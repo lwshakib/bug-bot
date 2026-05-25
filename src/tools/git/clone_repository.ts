@@ -1,6 +1,6 @@
 import { Type } from "@google/genai";
 import { defineTool, run } from "../utils.js";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isProduction } from "../../env.js";
@@ -26,7 +26,8 @@ export const cloneRepositoryTool = defineTool({
       return { status: "error", message: "Invalid repository format. Must be 'owner/repo' or a valid GitHub HTTPS URL." };
     }
 
-    const workRoot = mkdtempSync(join(tmpdir(), "repo-agent-"));
+    const sanitizedRepoName = repo_name.replace(/[^a-zA-Z0-9_.-]/g, "_");
+    const workRoot = join(tmpdir(), "repo-agent-cache", sanitizedRepoName);
     const repoDir = join(workRoot, "repo");
     ctx.setWorkRoot(workRoot);
     ctx.setRepoDir(repoDir);
@@ -35,7 +36,35 @@ export const cloneRepositoryTool = defineTool({
     if (isProduction && ctx.githubToken && url.startsWith("https://github.com/")) {
       url = url.replace("https://github.com/", `https://x-access-token:${ctx.githubToken}@github.com/`);
     }
-    run(`git clone --depth 1 "${url}" "${repoDir}"`, process.cwd());
+
+    if (existsSync(repoDir)) {
+      console.log(`[CACHE] Reusing existing workspace cache for ${repo_name}`);
+      try {
+        // Find default branch (main or master)
+        let defaultBranch = "main";
+        try {
+          const branches = run("git branch -a", repoDir);
+          if (branches.includes("master") && !branches.includes("main")) {
+            defaultBranch = "master";
+          }
+        } catch (e) {}
+
+        run(`git checkout ${defaultBranch}`, repoDir);
+        run(`git reset --hard origin/${defaultBranch}`, repoDir);
+        run("git clean -fdx -e node_modules/", repoDir); // Delete build outputs but keep node_modules!
+        run("git pull", repoDir);
+      } catch (err: any) {
+        console.warn(`[CACHE] Failed to reset existing repo, recreating... Error: ${err.message}`);
+        try {
+          rmSync(workRoot, { recursive: true, force: true });
+        } catch (e) {}
+      }
+    }
+
+    if (!existsSync(repoDir)) {
+      mkdirSync(workRoot, { recursive: true });
+      run(`git clone --depth 1 "${url}" "${repoDir}"`, process.cwd());
+    }
 
     // Inspect CI configuration and pass raw content to the AI for decision-making
     const ciInfo = inspectCIConfiguration(repoDir);
