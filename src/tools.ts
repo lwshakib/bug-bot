@@ -3,6 +3,8 @@ import { cloneRepositoryTool } from "./tools/git/clone_repository.js";
 import { listFilesTool } from "./tools/file/list_files.js";
 import { readFileTool } from "./tools/file/read_file.js";
 import { searchCodeTool } from "./tools/file/search_code.js";
+import { extractCodeStructureTool } from "./tools/file/extract_code_structure.js";
+import { semanticSearchCodeTool } from "./tools/file/semantic_search_code.js";
 import { createGithubIssueTool } from "./tools/git/create_github_issue.js";
 import { replaceLinesTool } from "./tools/file/replace_lines.js";
 import { runCommandTool } from "./tools/os/run_command.js";
@@ -25,6 +27,8 @@ export const tools = [
   listFilesTool,
   readFileTool,
   searchCodeTool,
+  extractCodeStructureTool,
+  semanticSearchCodeTool,
   createGithubIssueTool,
   replaceLinesTool,
   runCommandTool,
@@ -60,6 +64,8 @@ export const createHandlers = (ctx: ToolContext) => {
     list_files: (args: any) => Promise<any>;
     read_file: (args: { file_path?: string; file_paths?: string[] }) => Promise<any>;
     search_code: (args: { query: string }) => Promise<any>;
+    extract_code_structure: (args: { file_path: string }) => Promise<any>;
+    semantic_search_code: (args: { query: string; limit?: number }) => Promise<any>;
     create_github_issue: (args: { owner: string; repo: string; title: string; body: string; labels?: string[] }) => Promise<any>;
     replace_lines: (args: { file_path: string; start_line: number; end_line: number; replacementContent: string }) => Promise<any>;
     run_command: (args: { command: string; is_validation?: boolean }) => Promise<any>;
