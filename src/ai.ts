@@ -104,6 +104,10 @@ export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?
       state.validationPasses = [];
     },
     recordValidationResult: (command, exitCode) => {
+      // Filter out stale runs of the same command to prevent older failures from blocking new passes
+      state.validationPasses = state.validationPasses.filter(entry => !entry.startsWith(`${command} exited with `));
+      state.validationFailures = state.validationFailures.filter(entry => !entry.startsWith(`${command} exited with `));
+
       const entry = `${command} exited with ${exitCode}`;
       if (exitCode === 0) {
         state.validationPasses.push(entry);
