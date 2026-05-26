@@ -510,7 +510,13 @@ export const extractCodeStructureTool = defineTool({
       const totalLines = content.split("\n").length;
 
       if (["ts", "js", "tsx", "jsx"].includes(ext)) {
-        const sourceFile = ts.createSourceFile(file_path, content, ts.ScriptTarget.Latest, true);
+        let scriptKind = ts.ScriptKind.Unknown;
+        if (ext === "js") scriptKind = ts.ScriptKind.JS;
+        else if (ext === "jsx") scriptKind = ts.ScriptKind.JSX;
+        else if (ext === "ts") scriptKind = ts.ScriptKind.TS;
+        else if (ext === "tsx") scriptKind = ts.ScriptKind.TSX;
+
+        const sourceFile = ts.createSourceFile(file_path, content, ts.ScriptTarget.Latest, true, scriptKind);
         symbols = extractSymbols(sourceFile);
       } else {
         symbols = extractFallbackSymbols(content, ext);

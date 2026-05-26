@@ -22,11 +22,18 @@ function validateSyntax(filePath: string, content: string): string | null {
 
   if (["ts", "js", "tsx", "jsx"].includes(ext || "")) {
     try {
+      let scriptKind = ts.ScriptKind.Unknown;
+      if (ext === "js") scriptKind = ts.ScriptKind.JS;
+      else if (ext === "jsx") scriptKind = ts.ScriptKind.JSX;
+      else if (ext === "ts") scriptKind = ts.ScriptKind.TS;
+      else if (ext === "tsx") scriptKind = ts.ScriptKind.TSX;
+
       const sourceFile = ts.createSourceFile(
         filePath,
         content,
         ts.ScriptTarget.Latest,
-        true
+        true,
+        scriptKind
       );
       const diagnostics = (sourceFile as any).parseDiagnostics || [];
       if (diagnostics.length > 0) {
@@ -86,13 +93,17 @@ export const replaceLinesTool = defineTool({
     const before = lines.slice(0, start - 1);
     const after = lines.slice(end);
 
-    // Sanitize: The Gemini model sometimes double-escapes quotes in function call args,
-    // producing literal \" (backslash + quote) in the parsed string. Since the SDK already
-    // handles JSON deserialization, any remaining \" in the content is a model artifact.
+    // Sanitize: The Gemini model sometimes double-escapes quotes, newlines, tabs, and other
+    // characters in function call args. Since the SDK already handles JSON deserialization,
+    // any remaining double-escaped sequences in the content are model artifacts.
     let sanitized = replacementContent;
-    if (sanitized.includes('\\"')) {
-      console.log(`[SANITIZE] Fixing ${(sanitized.match(/\\"/g) || []).length} escaped quote artifact(s) in replacement content for ${file_path}`);
-      sanitized = sanitized.replace(/\\"/g, '"');
+    if (sanitized.includes('\\"') || sanitized.includes('\\n') || sanitized.includes('\\t') || sanitized.includes('\\\\')) {
+      console.log(`[SANITIZE] Sanitizing double-escaped artifacts in replacement content for ${file_path}`);
+      sanitized = sanitized
+        .replace(/\\"/g, '"')
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\\\/g, '\\');
     }
 
     const newContent = [...before, sanitized, ...after].join("\n");
