@@ -22,7 +22,8 @@ import {
   RETRY_503_BURST_DELAY,
   RETRY_503_LONG_DELAY,
   SESSION_TIMEOUT_MS,
-  DEFAULT_MODEL_ID
+  DEFAULT_MODEL_ID,
+  MAX_CONTEXT_WINDOW_TOKENS
 } from "./constants.js";
 
 function pickRandom<T>(items: T[]): T {
@@ -156,6 +157,42 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
           throw new Error("Session timeout reached");
         }
 
+      // Measure and prune history to fit context window limit of MAX_CONTEXT_WINDOW_TOKENS
+      const currentInputMessage = { role: "user", parts: [{ text: typeof message === "string" ? message : JSON.stringify(message) }] };
+      let checkHistory = [...history];
+      let totalTokens = 0;
+      try {
+        const checkRes = await genAI.models.countTokens({
+          model: DEFAULT_MODEL_ID,
+          contents: [...checkHistory, currentInputMessage],
+        });
+        totalTokens = checkRes.totalTokens || 0;
+      } catch (e: any) {
+        console.warn(`[CONTEXT MONITOR] Failed to count tokens:`, e.message);
+      }
+
+      if (totalTokens > MAX_CONTEXT_WINDOW_TOKENS) {
+        console.log(`[CONTEXT MONITOR] Context window size (${totalTokens}) exceeds limit (${MAX_CONTEXT_WINDOW_TOKENS}). Pruning history...`);
+        let pruneAttempts = 0;
+        // Keep the first 4 messages (initialization) and the last 6 messages. Prune from the middle.
+        while (checkHistory.length > 10 && totalTokens > MAX_CONTEXT_WINDOW_TOKENS && pruneAttempts < 100) {
+          checkHistory.splice(4, 2);
+          pruneAttempts++;
+          try {
+            const checkRes = await genAI.models.countTokens({
+              model: DEFAULT_MODEL_ID,
+              contents: [...checkHistory, currentInputMessage],
+            });
+            totalTokens = checkRes.totalTokens || 0;
+          } catch (e) {
+            break;
+          }
+        }
+        console.log(`[CONTEXT MONITOR] Pruning complete. History reduced from ${history.length} to ${checkHistory.length} messages. New context window size: ${totalTokens} tokens.`);
+        history.length = 0;
+        history.push(...checkHistory);
+      }
+
       let result: any;
       let retryCount429 = 0;
       let retryCount503 = 0;
@@ -165,10 +202,10 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
         try {
           result = await genAI.models.generateContent({
             model: DEFAULT_MODEL_ID,
-            contents: [...history, { role: "user", parts: [{ text: typeof message === "string" ? message : JSON.stringify(message) }] }],
+            contents: [...history, currentInputMessage],
             config: { 
               systemInstruction,
-              tools: toolDefinitions 
+              tools: toolDefinitions
             }
           });
           break; // Success

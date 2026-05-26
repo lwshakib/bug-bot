@@ -62,3 +62,9 @@ export const RETRY_NETWORK_DELAY = 10000; // 10 seconds
  * The default AI model used for report generation, poetic summaries, and creative tasks.
  */
 export const DEFAULT_MODEL_ID = "gemini-3.1-flash-lite";
+
+/**
+ * The maximum number of total context window tokens (input history + output) allowed in a session request.
+ * Strict limit set at 30,000 tokens to control context overhead.
+ */
+export const MAX_CONTEXT_WINDOW_TOKENS = 30000;
