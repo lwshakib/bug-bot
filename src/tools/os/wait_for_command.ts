@@ -1,5 +1,5 @@
 import { Type } from "@google/genai";
-import { defineTool, activeCommands } from "../utils.js";
+import { defineTool, activeCommands, ensureValidPnpmWorkspace } from "../utils.js";
 
 export const waitForCommandTool = defineTool({
   declaration: {
@@ -25,6 +25,7 @@ export const waitForCommandTool = defineTool({
     while (session.exitCode === null && (Date.now() - startTime) < timeoutMs) {
       await new Promise(r => setTimeout(r, 2000));
     }
+    ensureValidPnpmWorkspace(ctx.repoDir);
     if (session.exitCode !== null && session.isValidation) {
       ctx.recordValidationResult(session.command, session.exitCode);
     }

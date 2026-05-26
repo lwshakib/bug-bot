@@ -68,6 +68,26 @@ export function isBroadRecursiveSearchCommand(command: string): boolean {
   ].some(pattern => pattern.test(command));
 }
 
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+export function ensureValidPnpmWorkspace(repoDir: string) {
+  if (!repoDir) return;
+  const workspacePath = join(repoDir, "pnpm-workspace.yaml");
+  if (existsSync(workspacePath)) {
+    try {
+      const content = readFileSync(workspacePath, "utf8");
+      if (!/^\s*packages\s*:/mi.test(content)) {
+        console.log(`[WORKSPACE FIX] pnpm-workspace.yaml is missing 'packages' field. Appending default packages list to prevent ERR_PNPM_IGNORED_BUILDS / workspace setup failures.`);
+        const separator = content.endsWith("\n") ? "" : "\n";
+        writeFileSync(workspacePath, content + separator + "packages:\n  - '.'\n");
+      }
+    } catch (e) {
+      console.warn("[WORKSPACE FIX] Failed to inspect or write pnpm-workspace.yaml:", e);
+    }
+  }
+}
+
 export const terminateAllCommands = () => {
   console.log(`[CLEANUP] Terminating ${activeCommands.size} active background commands...`);
   for (const [id, session] of activeCommands.entries()) {

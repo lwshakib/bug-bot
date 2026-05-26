@@ -1,5 +1,5 @@
 import { Type } from "@google/genai";
-import { defineTool, activeCommands, isGlobalPackageInstallCommand, isBroadRecursiveSearchCommand } from "../utils.js";
+import { defineTool, activeCommands, isGlobalPackageInstallCommand, isBroadRecursiveSearchCommand, ensureValidPnpmWorkspace } from "../utils.js";
 import type { CommandSession } from "../utils.js";
 import { spawn } from "node:child_process";
 
@@ -30,13 +30,25 @@ export const startBackgroundCommandTool = defineTool({
         message: "Broad recursive shell searches are not allowed through start_background_command. Use search_code for repository searches, or list_files/read_file for targeted inspection."
       };
     }
+
+    let finalCommand = command;
+    if (/\b(?:pnpm|yarn)\b/i.test(command) && !/\bcorepack enable\b/i.test(command)) {
+      finalCommand = `corepack enable && ${command}`;
+    }
+
+    const isValidation = is_validation === true || /\b(?:build|lint|format|typecheck|test|check|validate)\b/i.test(command);
+    ensureValidPnpmWorkspace(ctx.repoDir);
     const commandId = Math.random().toString(36).substring(7);
-    const child = spawn(command, { shell: true, cwd: ctx.repoDir });
+    const child = spawn(finalCommand, {
+      shell: true,
+      cwd: ctx.repoDir,
+      env: { ...process.env, pnpm_config_dangerously_allow_all_builds: "true" }
+    });
     
     const session: CommandSession = {
       process: child,
-      command,
-      isValidation: is_validation === true,
+      command: finalCommand,
+      isValidation: isValidation,
       stdout: "",
       stderr: "",
       exitCode: null,

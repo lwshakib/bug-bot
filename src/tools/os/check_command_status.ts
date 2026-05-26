@@ -1,5 +1,5 @@
 import { Type } from "@google/genai";
-import { defineTool, activeCommands } from "../utils.js";
+import { defineTool, activeCommands, ensureValidPnpmWorkspace } from "../utils.js";
 
 export const checkCommandStatusTool = defineTool({
   declaration: {
@@ -19,6 +19,7 @@ export const checkCommandStatusTool = defineTool({
     if (session.exitCode !== null && session.isValidation) {
       ctx.recordValidationResult(session.command, session.exitCode);
     }
+    ensureValidPnpmWorkspace(ctx.repoDir);
     
     return {
       status: "success",

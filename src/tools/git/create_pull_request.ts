@@ -1,5 +1,5 @@
 import { Type } from "@google/genai";
-import { defineTool, run } from "../utils.js";
+import { defineTool, run, ensureValidPnpmWorkspace } from "../utils.js";
 import { execSync } from "node:child_process";
 
 export const createPullRequestTool = defineTool({
@@ -47,6 +47,7 @@ export const createPullRequestTool = defineTool({
 
     // Use -B to create or reset the branch if it already exists locally
     run(`git checkout -B ${branch_name}`, ctx.repoDir);
+    ensureValidPnpmWorkspace(ctx.repoDir);
     run(`git add .`, ctx.repoDir);
     
     try {
