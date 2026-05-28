@@ -112,6 +112,24 @@ export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?
       const entry = `${command} exited with ${exitCode}`;
       if (exitCode === 0) {
         state.validationPasses.push(entry);
+        
+        // 1. If this is a comprehensive tool call (like run_validation), it validates everything. Clear all previous failures!
+        // 2. If the successful command is a chained validation or runs all tasks, clear all previous failures.
+        // 3. If the successful command is a superset of a failed command, clear that failed command.
+        const isComprehensive = command === "run_validation" || 
+          (/\b(?:build|lint|typecheck|format)\b/i.test(command) && /\b(?:and|&&|;)\b/i.test(command)) ||
+          (command.includes("turbo") && ["build", "lint", "typecheck"].every(word => command.includes(word)));
+
+        if (isComprehensive) {
+          console.log(`[VALIDATION SUCCESS] Comprehensive validation passed: "${command}". Clearing all previous failures.`);
+          state.validationFailures = [];
+        } else {
+          state.validationFailures = state.validationFailures.filter(failEntry => {
+            const failCmd = failEntry.split(" exited with ")[0];
+            if (!failCmd) return true;
+            return !command.includes(failCmd);
+          });
+        }
       } else {
         state.validationFailures.push(entry);
       }
