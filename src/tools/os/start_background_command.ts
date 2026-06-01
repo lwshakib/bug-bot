@@ -42,7 +42,11 @@ export const startBackgroundCommandTool = defineTool({
     const child = spawn(finalCommand, {
       shell: true,
       cwd: ctx.repoDir,
-      env: { ...process.env, pnpm_config_dangerously_allow_all_builds: "true" }
+      env: { 
+        ...process.env, 
+        pnpm_config_dangerously_allow_all_builds: "true",
+        npm_config_dangerously_allow_all_builds: "true"
+      }
     });
     
     const session: CommandSession = {

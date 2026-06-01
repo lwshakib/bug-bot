@@ -105,29 +105,30 @@ export async function runBugAgent(agentType: "ISSUE" | "PR" = "ISSUE", repoName?
       state.validationPasses = [];
     },
     recordValidationResult: (command, exitCode) => {
+      const cleanCommand = command.replace(/^corepack\s+enable\s+&&\s+/i, "");
       // Filter out stale runs of the same command to prevent older failures from blocking new passes
-      state.validationPasses = state.validationPasses.filter(entry => !entry.startsWith(`${command} exited with `));
-      state.validationFailures = state.validationFailures.filter(entry => !entry.startsWith(`${command} exited with `));
+      state.validationPasses = state.validationPasses.filter(entry => !entry.startsWith(`${cleanCommand} exited with `));
+      state.validationFailures = state.validationFailures.filter(entry => !entry.startsWith(`${cleanCommand} exited with `));
 
-      const entry = `${command} exited with ${exitCode}`;
+      const entry = `${cleanCommand} exited with ${exitCode}`;
       if (exitCode === 0) {
         state.validationPasses.push(entry);
         
         // 1. If this is a comprehensive tool call (like run_validation), it validates everything. Clear all previous failures!
         // 2. If the successful command is a chained validation or runs all tasks, clear all previous failures.
         // 3. If the successful command is a superset of a failed command, clear that failed command.
-        const isComprehensive = command === "run_validation" || 
-          (/\b(?:build|lint|typecheck|format)\b/i.test(command) && /\b(?:and|&&|;)\b/i.test(command)) ||
-          (command.includes("turbo") && ["build", "lint", "typecheck"].every(word => command.includes(word)));
+        const isComprehensive = cleanCommand === "run_validation" || 
+          (/\b(?:build|lint|typecheck|format)\b/i.test(cleanCommand) && /\b(?:and|&&|;)\b/i.test(cleanCommand)) ||
+          (cleanCommand.includes("turbo") && ["build", "lint", "typecheck"].every(word => cleanCommand.includes(word)));
 
         if (isComprehensive) {
-          console.log(`[VALIDATION SUCCESS] Comprehensive validation passed: "${command}". Clearing all previous failures.`);
+          console.log(`[VALIDATION SUCCESS] Comprehensive validation passed: "${cleanCommand}". Clearing all previous failures.`);
           state.validationFailures = [];
         } else {
           state.validationFailures = state.validationFailures.filter(failEntry => {
             const failCmd = failEntry.split(" exited with ")[0];
             if (!failCmd) return true;
-            return !command.includes(failCmd);
+            return !cleanCommand.includes(failCmd);
           });
         }
       } else {

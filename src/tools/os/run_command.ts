@@ -45,7 +45,11 @@ export const runCommandTool = defineTool({
       const child = spawn(finalCommand, {
         shell: true,
         cwd: ctx.repoDir,
-        env: { ...process.env, pnpm_config_dangerously_allow_all_builds: "true" }
+        env: { 
+          ...process.env, 
+          pnpm_config_dangerously_allow_all_builds: "true",
+          npm_config_dangerously_allow_all_builds: "true"
+        }
       });
       
       const session: CommandSession = {
@@ -101,7 +105,11 @@ export const runCommandTool = defineTool({
         stdio: "pipe",
         encoding: "utf8",
         timeout: 300000,
-        env: { ...process.env, pnpm_config_dangerously_allow_all_builds: "true" }
+        env: { 
+          ...process.env, 
+          pnpm_config_dangerously_allow_all_builds: "true",
+          npm_config_dangerously_allow_all_builds: "true"
+        }
       });
       ensureValidPnpmWorkspace(ctx.repoDir);
       if (isValidation) ctx.recordValidationResult(command, 0);

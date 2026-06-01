@@ -25,12 +25,17 @@ export const runValidationTool = defineTool({
     try {
       console.log(`Executing validation: ${commands.join(", ")}`);
 
-      const promises = commands.map(cmd => {
-        return new Promise<any>((resolve) => {
+      const results = [];
+      for (const cmd of commands) {
+        const res = await new Promise<any>((resolve) => {
           exec(cmd, {
             cwd: ctx.repoDir,
             timeout: 300000,
-            env: { ...process.env, pnpm_config_dangerously_allow_all_builds: "true" }
+            env: { 
+              ...process.env, 
+              pnpm_config_dangerously_allow_all_builds: "true",
+              npm_config_dangerously_allow_all_builds: "true"
+            }
           }, (error, stdout, stderr) => {
             if (error) {
               const exitCode = typeof (error as any).code === "number" ? (error as any).code : 1;
@@ -46,9 +51,8 @@ export const runValidationTool = defineTool({
             }
           });
         });
-      });
-
-      const results = await Promise.all(promises);
+        results.push(res);
+      }
 
       const allPassed = results.every(r => r.status !== "failed");
       return { 
