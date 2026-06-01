@@ -37,6 +37,39 @@ export const listIssuesTool = defineTool({
     const botActivePrIssueNumbers = new Set<number>();
 
     for (const pr of prsRes.data) {
+      let isFailedBotPr = false;
+      if (pr.user?.login === botLogin) {
+        try {
+          const checks = await ctx.octokit.rest.checks.listForRef({
+            owner,
+            repo,
+            ref: pr.head.sha
+          });
+          const status = await ctx.octokit.rest.repos.getCombinedStatusForRef({
+            owner,
+            repo,
+            ref: pr.head.sha
+          });
+
+          const checkRuns = checks.data.check_runs;
+          const statuses = status.data.statuses;
+
+          const hasFailedCheck = checkRuns.some(run => run.conclusion === "failure" || run.conclusion === "action_required");
+          const hasFailedStatus = statuses.some(s => s.state === "failure" || s.state === "error");
+
+          if (hasFailedCheck || hasFailedStatus) {
+            isFailedBotPr = true;
+          }
+        } catch (e: any) {
+          console.error(`Failed to fetch CI status for PR #${pr.number}:`, e.message);
+        }
+      }
+
+      if (isFailedBotPr) {
+        console.log(`[PR FILTER] PR #${pr.number} created by this bot (${botLogin}) has failed CI checks. Allowing its issue to pass through for repair.`);
+        continue;
+      }
+
       const textToSearch = `${pr.title} ${pr.body || ""} ${pr.head.ref}`;
       const matches = textToSearch.match(/#(\d+)\b|\bissue-(\d+)\b|\bissues\/(\d+)\b/gi);
       if (matches) {
