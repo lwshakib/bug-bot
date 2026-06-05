@@ -6,6 +6,33 @@ An autonomous bug-hunting and PR-fixing bot designed to find, report, and remedi
 
 The system is decoupled into two specialized modes of operation:
 
+```mermaid
+flowchart TD
+    subgraph IssueAgent ["1. Issue Agent (Auditor)"]
+        A[Start Audit Session] --> B[Read repositories.json]
+        B --> C[Hop to Next Repository]
+        C --> D{Is Repo Clean?}
+        D -- Yes --> C
+        D -- No --> E[Deep Scan for Bugs & Vulnerabilities]
+        E --> F[Create High-Fidelity GitHub Issues]
+    end
+
+    subgraph PRAgent ["2. PR Agent (Fixer)"]
+        G[Start Fixer Session] --> H[Scan Open GitHub Issues]
+        H --> I{Has Active PR?}
+        I -- Yes --> J[Skip to Avoid Conflict]
+        I -- No --> K[Generate Code Fixes]
+        K --> L[Run Local Validation: Build / Lint / Typecheck]
+        L --> M{Validation Passes?}
+        M -- No --> N[AI Diagnostic & Self-Correction]
+        N --> K
+        M -- Yes --> O[Submit Pull Request]
+    end
+
+    F -.-> H
+```
+
+
 ### 1. **The Issue Agent (Auditor)**
 *   **Goal**: Performs deep, multi-repo audits to identify bugs, security vulnerabilities, and performance bottlenecks.
 *   **Target**: Aims for **20–30 high-fidelity issues** per run.
@@ -80,12 +107,50 @@ All behavioral constants are centralized in `src/constants.ts`. You can easily t
 *   `DEFAULT_MODEL_ID`: Choose the AI model for reporting and poetry.
 *   `NOTIFICATION_EMAIL`: Your primary alert destination.
 
-## 🔑 Environment Setup
+## ⚙️ Installation & Setup
 
-Ensure your `.env` file contains:
-*   `GEMINI_API_KEY`: For agentic reasoning.
-*   `GITHUB_TOKEN`: For repository interaction.
-*   `RESEND_API_KEY`: For email notifications.
+Follow these steps to clone, configure, and run Bug-Bot on your local machine:
+
+### 1. Clone the Repository
+Clone the repository to your local system and navigate to the project directory:
+```bash
+git clone https://github.com/lwshakib/bug-bot.git
+cd bug-bot
+```
+
+### 2. Install Dependencies
+Bug-Bot runs on Node.js. Ensure you have Node.js (v22 or higher recommended) and npm installed, then run:
+```bash
+npm install
+```
+
+### 3. Environment Configuration
+Copy the template `.env.example` file to create your own `.env` configuration:
+```bash
+cp .env.example .env
+```
+Open the `.env` file and supply the required API credentials:
+*   `GEMINI_API_KEY`: The API key for Gemini models to analyze code and generate reports.
+*   `GITHUB_TOKEN`: A Personal Access Token (PAT) with `repo` scope to query issues, create branches, and open pull requests.
+*   `RESEND_API_KEY`: The API key for Resend email notifications to deliver grand reports at the end of sessions.
+
+### 4. Build the Project
+Compile the TypeScript source code into executable JavaScript:
+```bash
+npm run build
+```
+
+### 5. Running the Agents
+Depending on the task, start the auditor or fixer agents:
+*   **Run the Issue Agent (Auditor)**:
+    ```bash
+    npm run issue-agent
+    ```
+*   **Run the PR Agent (Fixer)**:
+    ```bash
+    npm run pr-agent
+    ```
+
 
 ## 📅 GitHub Workflows & Templates
 
