@@ -3,7 +3,7 @@ import { defineTool, run } from "../utils.js";
 import { mkdtempSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isProduction } from "../../env.js";
+import { isProduction } from "../../utils/env.js";
 import { inspectCIConfiguration } from "../ci_discovery.js";
 
 export const cloneRepositoryTool = defineTool({

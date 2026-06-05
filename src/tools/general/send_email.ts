@@ -1,6 +1,6 @@
 import { Type } from "@google/genai";
 import { defineTool } from "../utils.js";
-import { queueEmail } from "../../email-buffer.js";
+import { queueEmail } from "../../utils/email.js";
 
 export const sendEmailTool = defineTool({
   declaration: {

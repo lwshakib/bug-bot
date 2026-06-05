@@ -1,16 +1,16 @@
 import { readFileSync, rmSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { genAI, octokit } from "../client.js";
-import { githubToken, isProduction } from "../env.js";
+import { genAI, octokit } from "../utils/client.js";
+import { githubToken, isProduction } from "../utils/env.js";
 import { 
   AGENTIC_REASONING_INSTRUCTION, 
   ISSUE_AGENT_SYSTEM_INSTRUCTION, 
   PR_AGENT_SYSTEM_INSTRUCTION,
   FIX_GENERATION_SYSTEM_INSTRUCTION 
 } from "./prompts.js";
-import { toolDefinitions, createHandlers, terminateAllCommands } from "../tools.js";
-import type { ToolContext } from "../tools.js";
+import { toolDefinitions, createHandlers, terminateAllCommands } from "../utils/tools.js";
+import type { ToolContext } from "../utils/tools.js";
 import { 
   MAX_TOOL_CALLS, 
   MAX_NETWORK_RETRIES,
@@ -24,7 +24,7 @@ import {
   SESSION_TIMEOUT_MS,
   DEFAULT_MODEL_ID,
   MAX_CONTEXT_WINDOW_TOKENS
-} from "../constants.js";
+} from "../utils/constants.js";
 
 function pickRandom<T>(items: T[]): T {
   const index = Math.floor(Math.random() * items.length);
@@ -243,7 +243,7 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
                   html: `The agent has been terminated because the Gemini API rate limit was consistently exceeded for <b><a href="https://github.com/${selected}">${selected}</a></b>.<br><br><b>What to Do Now / How to Solve This:</b> Wait a few minutes for the rate limits to clear, check your current API quota and usage in the Google AI Studio console, or switch to an API key with higher rate limits.`
                 });
               }
-              const { flushEmails } = await import("../email-buffer.js");
+              const { flushEmails } = await import("../utils/email.js");
               await flushEmails("TERMINATED");
               process.exit(1); 
             }

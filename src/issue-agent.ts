@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { genAI } from "./client.js";
+import { genAI } from "./utils/client.js";
 import { runBugAgent } from "./llm/ai.js";
-import { GLOBAL_SESSION_RETRY_DELAY, DEFAULT_MODEL_ID } from "./constants.js";
-import { flushEmails } from "./email-buffer.js";
+import { GLOBAL_SESSION_RETRY_DELAY, DEFAULT_MODEL_ID } from "./utils/constants.js";
+import { flushEmails } from "./utils/email.js";
 
 const sessionStartTime = Date.now();
 
@@ -75,7 +75,7 @@ Spirit: Vigilance, precision, and continuous improvement.`;
   });
   const poem = result.candidates?.[0]?.content?.parts?.[0]?.text || "The audit is done, the path is clear.";
 
-  const { createHandlers } = await import("./tools.js");
+  const { createHandlers } = await import("./utils/tools.js");
   const handlers = createHandlers({} as any);
 
   const dateStr = new Date().toLocaleString();

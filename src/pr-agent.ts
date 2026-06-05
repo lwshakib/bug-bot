@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { genAI, octokit } from "./client.js";
+import { genAI, octokit } from "./utils/client.js";
 import { runBugAgent } from "./llm/ai.js";
-import { GLOBAL_SESSION_RETRY_DELAY, DEFAULT_MODEL_ID } from "./constants.js";
-import { flushEmails } from "./email-buffer.js";
+import { GLOBAL_SESSION_RETRY_DELAY, DEFAULT_MODEL_ID } from "./utils/constants.js";
+import { flushEmails } from "./utils/email.js";
 
 const sessionStartTime = Date.now();
 
@@ -44,7 +44,7 @@ Spirit: Resilience, precision, and continuous improvement.`;
   });
   const poem = result.candidates?.[0]?.content?.parts?.[0]?.text || "The codebase is mended, the bugs are gone.";
 
-  const { createHandlers } = await import("./tools.js");
+  const { createHandlers } = await import("./utils/tools.js");
   const handlers = createHandlers({} as any);
   
   const dateStr = new Date().toLocaleString();
@@ -86,7 +86,7 @@ async function main() {
 
   console.log(`[PR STRATEGY] Surveying ${repos.length} repositories for high-impact issues...`);
   
-  const { createHandlers } = await import("./tools.js");
+  const { createHandlers } = await import("./utils/tools.js");
   const handlers = createHandlers({ octokit } as any);
   
   const portfolioBacklog: any[] = [];
