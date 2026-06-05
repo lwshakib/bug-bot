@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { genAI } from "./client.js";
-import { runBugAgent } from "./ai.js";
+import { runBugAgent } from "./llm/ai.js";
 import { GLOBAL_SESSION_RETRY_DELAY, DEFAULT_MODEL_ID } from "./constants.js";
 import { flushEmails } from "./email-buffer.js";
 
