@@ -73,18 +73,31 @@ At the end of every session, the agent delivers a **Grand Report** email includi
 
 ## 🛠️ Configuration
 
-All behavioral constants are centralized in \`src/constants.ts\`. You can easily tune:
-*   \`MAX_TOOL_CALLS\`: Set to 200 for deep reasoning.
-*   \`ISSUE_VOLUME_TARGET\`: Control the audit depth.
-*   \`RETRY_DELAYS\`: Adjust the agent's patience for API limits.
-*   \`DEFAULT_MODEL_ID\`: Choose the AI model for reporting and poetry.
-*   \`NOTIFICATION_EMAIL\`: Your primary alert destination.
+All behavioral constants are centralized in `src/constants.ts`. You can easily tune:
+*   `MAX_TOOL_CALLS`: Set to 200 for deep reasoning.
+*   `ISSUE_VOLUME_TARGET`: Control the audit depth.
+*   `RETRY_DELAYS`: Adjust the agent's patience for API limits.
+*   `DEFAULT_MODEL_ID`: Choose the AI model for reporting and poetry.
+*   `NOTIFICATION_EMAIL`: Your primary alert destination.
 
 ## 🔑 Environment Setup
 
-Ensure your \`.env\` file contains:
-*   \`GEMINI_API_KEY\`: For agentic reasoning.
-*   \`GITHUB_TOKEN\`: For repository interaction.
-*   \`RESEND_API_KEY\`: For email notifications.
+Ensure your `.env` file contains:
+*   `GEMINI_API_KEY`: For agentic reasoning.
+*   `GITHUB_TOKEN`: For repository interaction.
+*   `RESEND_API_KEY`: For email notifications.
+
+## 📅 GitHub Workflows & Templates
+
+This repository is pre-configured with several GitHub workflows and templates for collaborative development:
+*   **Active Issue Agent Workflow (`.github/workflows/run-issue-agent.yml`)**: Automatically triggers at midnight daily to perform static codebase audits.
+*   **Workflow Template (`.github/workflows/run.txt`)**: A text template detailing the dual-agent execution flow (for reference/manual configuration).
+*   **Issue Templates**: Standardized templates for [Bug Reports](.github/ISSUE_TEMPLATE/bug_report.md) and [Feature Requests](.github/ISSUE_TEMPLATE/feature_request.md).
+*   **Pull Request Template**: A standardized checklist and transformation log template at [PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md).
+
+## 🤝 Contributing & Community
+
+*   Please review our [Contributing Guidelines](CONTRIBUTING.md) to get started with local development.
+*   All contributors are expected to adhere to our [Code of Conduct](.github/CODE_OF_CONDUCT.md).
 
 *Bug-Bot | Autonomous Bug & Vulnerability Remediation System*
