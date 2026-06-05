@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { genAI } from "./client.js";
 import { runBugAgent } from "./ai.js";
 import { GLOBAL_SESSION_RETRY_DELAY, DEFAULT_MODEL_ID } from "./constants.js";
+import { flushEmails } from "./email-buffer.js";
 
 const sessionStartTime = Date.now();
 
@@ -131,6 +132,14 @@ async function main() {
   }
 
   await sendFinalReport("ISSUE", summaries);
+  await flushEmails("ISSUE");
 }
 
-main().catch(console.error);
+main().catch(async (error) => {
+  console.error(error);
+  try {
+    await flushEmails("ISSUE");
+  } catch (e) {
+    console.error("Failed to flush emails on crash:", e);
+  }
+});

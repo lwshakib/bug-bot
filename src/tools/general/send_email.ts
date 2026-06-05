@@ -1,7 +1,6 @@
 import { Type } from "@google/genai";
 import { defineTool } from "../utils.js";
-import { resend } from "../../client.js";
-import { NOTIFICATION_EMAIL } from "../../constants.js";
+import { queueEmail } from "../../email-buffer.js";
 
 export const sendEmailTool = defineTool({
   declaration: {
@@ -17,18 +16,7 @@ export const sendEmailTool = defineTool({
     }
   },
   execute: async ({ subject, html }: { subject: string; html: string }) => {
-    if (!resend || !NOTIFICATION_EMAIL) return { status: "skipped", reason: "Resend not configured" };
-    try {
-      const { data, error } = await resend.emails.send({
-        from: "BugBot <bugbot@lwshakib.site>",
-        to: [NOTIFICATION_EMAIL],
-        subject,
-        html,
-      });
-      if (error) return { status: "error", message: error.message };
-      return { status: "success", id: data?.id };
-    } catch (e: any) {
-      return { status: "error", message: e.message };
-    }
+    queueEmail(subject, html);
+    return { status: "success", message: "Email queued for consolidated delivery" };
   }
 });

@@ -98,6 +98,6 @@ This repository is pre-configured with several GitHub workflows and templates fo
 ## 🤝 Contributing & Community
 
 *   Please review our [Contributing Guidelines](CONTRIBUTING.md) to get started with local development.
-*   All contributors are expected to adhere to our [Code of Conduct](.github/CODE_OF_CONDUCT.md).
+*   All contributors are expected to adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 *Bug-Bot | Autonomous Bug & Vulnerability Remediation System*

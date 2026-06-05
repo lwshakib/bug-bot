@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { genAI, octokit } from "./client.js";
 import { runBugAgent } from "./ai.js";
 import { GLOBAL_SESSION_RETRY_DELAY, DEFAULT_MODEL_ID } from "./constants.js";
+import { flushEmails } from "./email-buffer.js";
 
 const sessionStartTime = Date.now();
 
@@ -210,6 +211,14 @@ Return your analysis in the following JSON format:
   }
 
   await sendFinalReport("PR", summaries);
+  await flushEmails("PR");
 }
 
-main().catch(console.error);
+main().catch(async (error) => {
+  console.error(error);
+  try {
+    await flushEmails("PR");
+  } catch (e) {
+    console.error("Failed to flush emails on crash:", e);
+  }
+});

@@ -243,6 +243,8 @@ ${FIX_GENERATION_SYSTEM_INSTRUCTION}`;
                   html: `The agent has been terminated because the Gemini API rate limit was consistently exceeded for <b><a href="https://github.com/${selected}">${selected}</a></b>.<br><br><b>What to Do Now / How to Solve This:</b> Wait a few minutes for the rate limits to clear, check your current API quota and usage in the Google AI Studio console, or switch to an API key with higher rate limits.`
                 });
               }
+              const { flushEmails } = await import("./email-buffer.js");
+              await flushEmails("TERMINATED");
               process.exit(1); 
             }
             const delay = retryCount429 === 1 ? RETRY_429_DELAY_1 : retryCount429 === 2 ? RETRY_429_DELAY_2 : RETRY_429_DELAY_3;
